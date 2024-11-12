@@ -1,0 +1,2 @@
+from CustomGoogleNet import CustomDenseNet
+from CustomResNet import CustomResNet
