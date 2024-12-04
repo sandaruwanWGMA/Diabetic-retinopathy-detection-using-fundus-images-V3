@@ -64,24 +64,24 @@ class DiabeticRetinopathyDetectionModel:
         print(classification_report(y_test, y_pred))
 
 
-# Example usage
-# Load or create data (dummy example data here)
-num_samples = 100
-X = np.random.rand(num_samples, 224, 224, 3)  # Assume input images are 224x224 RGB
-y = np.random.randint(0, 5, num_samples)  # Assuming 5 classes for the task
+# # Example usage
+# # Load or create data (dummy example data here)
+# num_samples = 100
+# X = np.random.rand(num_samples, 224, 224, 3)  # Assume input images are 224x224 RGB
+# y = np.random.randint(0, 5, num_samples)  # Assuming 5 classes for the task
 
-# Split data into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
+# # Split data into training and testing sets
+# X_train, X_test, y_train, y_test = train_test_split(
+#     X, y, test_size=0.2, random_state=42
+# )
 
-# Initialize and train the model
-model = DiabeticRetinopathyDetectionModel()
-model.train(X_train, y_train)
+# # Initialize and train the model
+# model = DiabeticRetinopathyDetectionModel()
+# model.train(X_train, y_train)
 
-# Predict on test set
-y_prob = model.predict(X_test)
-print("Predicted probabilities for the test set:", y_prob)
+# # Predict on test set
+# y_prob = model.predict(X_test)
+# print("Predicted probabilities for the test set:", y_prob)
 
-# Evaluate the model
-model.evaluate(X_test, y_test)
+# # Evaluate the model
+# model.evaluate(X_test, y_test)
