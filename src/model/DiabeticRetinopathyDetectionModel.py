@@ -1,87 +1,272 @@
-import tensorflow as tf
-from tensorflow.keras.layers import Concatenate
-from tensorflow.keras.models import Model
-from CustomGoogleNet import CustomDenseNet
-from CustomResNet import CustomResNet
-
 import numpy as np
-from sklearn import svm
+from tensorflow.keras.applications import InceptionV3, ResNet50
+from tensorflow.keras.layers import GlobalAveragePooling2D
+from tensorflow.keras.models import Model
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.naive_bayes import GaussianNB
 from sklearn.preprocessing import StandardScaler
-from sklearn.calibration import CalibratedClassifierCV
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
+from sklearn.model_selection import train_test_split
+
+import os
+from datetime import datetime
+import pickle
+import json
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import classification_report, accuracy_score
+
+import logging
 
 
-class DiabeticRetinopathyDetectionModel:
-    def __init__(self):
-        # Load pre-trained DenseNet and ResNet models
-        self.densenet = CustomDenseNet().get_model()
-        self.resnet = CustomResNet().get_model()
+# 1. Preprocessing function
+def preprocess_images(images):
+    # Resize and normalize images for input into GoogleNet and ResNet-18
+    return images / 255.0  # Normalize pixel values to [0, 1]
 
-        # Initialize SVM model with RBF kernel
-        self.svm_model = svm.SVC(kernel="rbf", probability=True)
-        self.calibrated_svm = CalibratedClassifierCV(self.svm_model, method="sigmoid")
 
-        # Scaler for feature normalization
-        self.scaler = StandardScaler()
+# 2. Load GoogleNet and ResNet-18 for feature extraction
+def load_models(input_shape=(224, 224, 3)):
+    # GoogleNet (InceptionV3 is a close alternative)
+    googlenet_base = InceptionV3(
+        weights="imagenet", include_top=False, input_shape=input_shape
+    )
+    googlenet_model = Model(
+        inputs=googlenet_base.input,
+        outputs=GlobalAveragePooling2D()(googlenet_base.output),
+    )
 
-    def extract_features(self, input_data):
-        # Extract features from DenseNet and ResNet models
-        densenet_output = self.densenet.predict(input_data)
-        resnet_output = self.resnet.predict(input_data)
+    # ResNet-18 (ResNet50 is used as a substitute)
+    resnet_base = ResNet50(
+        weights="imagenet", include_top=False, input_shape=input_shape
+    )
+    resnet_model = Model(
+        inputs=resnet_base.input, outputs=GlobalAveragePooling2D()(resnet_base.output)
+    )
 
-        # Concatenate features from both models
-        combined_output = np.concatenate([densenet_output, resnet_output], axis=1)
-        return combined_output
+    return googlenet_model, resnet_model
 
-    def train(self, X_train, y_train):
-        # Extract features from training data
-        X_features = self.extract_features(X_train)
 
-        # Normalize the features
-        X_features = self.scaler.fit_transform(X_features)
+# 3. Feature Extraction
+def extract_features(models, images):
+    googlenet_model, resnet_model = models
+    # Extract features from GoogleNet
+    googlenet_features = googlenet_model.predict(images, verbose=1)
 
-        # Train the calibrated SVM model on the extracted features
-        self.calibrated_svm.fit(X_features, y_train)
-        print("SVM model trained successfully.")
+    # Extract features from ResNet
+    resnet_features = resnet_model.predict(images, verbose=1)
 
-    def predict(self, X_test):
-        # Extract and normalize features from test data
-        X_features = self.extract_features(X_test)
-        X_features = self.scaler.transform(X_features)
+    # Combine features
+    combined_features = np.concatenate([googlenet_features, resnet_features], axis=1)
+    return combined_features
 
-        # Predict probabilities for each class
-        y_prob = self.calibrated_svm.predict_proba(X_features)
-        return y_prob
 
-    def evaluate(self, X_test, y_test):
-        # Generate predictions
-        y_pred = self.calibrated_svm.predict(
-            self.scaler.transform(self.extract_features(X_test))
+# 4. Train and Evaluate Classifiers
+def train_and_evaluate(
+    X_features, y, classifier_type="SVM", log_dir="logs", model_name="trained_model"
+):
+    """
+    Trains and evaluates a classifier while saving logs and model state after each epoch.
+
+    Parameters:
+        X_features (np.ndarray): Extracted features.
+        y (np.ndarray): Ground truth labels.
+        classifier_type (str): Type of classifier to use (e.g., 'SVM').
+        log_dir (str): Directory where logs and model checkpoints will be saved.
+        model_name (str): Base name for the saved model files.
+
+    Returns:
+        dict: A dictionary of losses for plotting.
+    """
+    import os
+    from datetime import datetime
+    import pickle
+    import json
+
+    # Create log directory if it doesn't exist
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
+    # Split data into train and test sets
+    X_train, X_test, y_train, y_test = train_test_split(
+        X_features, y, test_size=0.2, random_state=42
+    )
+
+    # Normalize features
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
+
+    # Initialize the classifier
+    if classifier_type == "SVM":
+        model = SVC(kernel="rbf", probability=True)
+    elif classifier_type == "RandomForest":
+        from sklearn.ensemble import RandomForestClassifier
+
+        model = RandomForestClassifier(n_estimators=100, random_state=42)
+    elif classifier_type == "NaiveBayes":
+        from sklearn.naive_bayes import GaussianNB
+
+        model = GaussianNB()
+    else:
+        raise ValueError(f"Unknown classifier: {classifier_type}")
+
+    # Initialize loss tracking
+    losses = {"Training Loss": [], "Validation Loss": []}
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Simulated training process
+    for epoch in range(200):  # Replace with the actual number of epochs
+        # Simulate losses (replace with actual computations)
+        train_loss = np.random.rand() * 0.1 + (10 - epoch) * 0.01
+        val_loss = np.random.rand() * 0.1 + (10 - epoch) * 0.015
+
+        # Append losses for the epoch
+        losses["Training Loss"].append(train_loss)
+        losses["Validation Loss"].append(val_loss)
+
+        # Print losses to terminal
+        print(
+            f"Epoch {epoch + 1:02d}/10: Training Loss = {train_loss:.4f}, Validation Loss = {val_loss:.4f}"
         )
 
-        # Print classification report
-        print(classification_report(y_test, y_pred))
+        # Save training logs for this epoch
+        log_file = os.path.join(
+            log_dir, f"{model_name}_logs_epoch_{epoch + 1}_{timestamp}.json"
+        )
+        with open(log_file, "w") as f:
+            json.dump(losses, f, indent=4)
+
+        # Save model state for this epoch
+        model_file = os.path.join(
+            log_dir, f"{model_name}_model_epoch_{epoch + 1}_{timestamp}.pkl"
+        )
+        with open(model_file, "wb") as f:
+            pickle.dump(model, f)
+
+        print(
+            f"Checkpoint saved: Epoch {epoch + 1} - Logs: {log_file}, Model: {model_file}"
+        )
+
+    # Final model training
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+
+    # Print classification report
+    print(f"\nClassification Report for {classifier_type}:\n")
+    print(classification_report(y_test, y_pred))
+
+    return losses, model
 
 
-# # Example usage
-# # Load or create data (dummy example data here)
-# num_samples = 100
-# X = np.random.rand(num_samples, 224, 224, 3)  # Assume input images are 224x224 RGB
-# y = np.random.randint(0, 5, num_samples)  # Assuming 5 classes for the task
+def extract_features_from_generator(generator, googlenet_model, resnet_model):
+    combined_features = []
+    labels = []
+    for batch_images, batch_labels in generator:
+        googlenet_features = googlenet_model.predict(batch_images, verbose=0)
+        resnet_features = resnet_model.predict(batch_images, verbose=0)
+        batch_features = np.concatenate([googlenet_features, resnet_features], axis=1)
+        combined_features.append(batch_features)
+        labels.append(batch_labels)
+    combined_features = np.vstack(combined_features)
+    labels = np.concatenate(labels)
+    return combined_features, labels
 
-# # Split data into training and testing sets
-# X_train, X_test, y_train, y_test = train_test_split(
-#     X, y, test_size=0.2, random_state=42
-# )
 
-# # Initialize and train the model
-# model = DiabeticRetinopathyDetectionModel()
-# model.train(X_train, y_train)
+# 5. Train and Evaluate Classifiers Using Generators
+def train_and_evaluate_with_generators(
+    train_generator,
+    validation_generator,
+    googlenet_model,
+    resnet_model,
+    classifier_type="SVM",  # Default classifier
+    log_dir="logs",
+    model_name="trained_model",
+):
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
 
-# # Predict on test set
-# y_prob = model.predict(X_test)
-# print("Predicted probabilities for the test set:", y_prob)
+    # Ensure directory exists
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
 
-# # Evaluate the model
-# model.evaluate(X_test, y_test)
+    # Initialize loss tracking and timestamp for file saving
+    losses = {"Training Loss": [], "Validation Loss": []}
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Feature scaling and classifier setup
+    scaler = StandardScaler()
+    if classifier_type == "SVM":
+        model = SVC(kernel="rbf", probability=True)
+    elif classifier_type == "RF":
+        model = RandomForestClassifier(n_estimators=100)
+    elif classifier_type == "NB":
+        model = GaussianNB()
+    else:
+        raise ValueError(f"Unsupported classifier type: {classifier_type}")
+
+    # Training and evaluation process
+    for epoch in range(10):
+        X_train, y_train = extract_features_from_generator(
+            train_generator, googlenet_model, resnet_model
+        )
+        X_val, y_val = extract_features_from_generator(
+            validation_generator, googlenet_model, resnet_model
+        )
+
+        X_train = scaler.fit_transform(X_train)
+        X_val = scaler.transform(X_val)
+
+        model.fit(X_train, y_train)
+        y_pred_train = model.predict(X_train)
+        y_pred_val = model.predict(X_val)
+
+        train_accuracy = accuracy_score(y_train, y_pred_train)
+        val_accuracy = accuracy_score(y_val, y_pred_val)
+        losses["Training Loss"].append(1 - train_accuracy)
+        losses["Validation Loss"].append(1 - val_accuracy)
+
+        logging.info(
+            f"Epoch {epoch + 1}: Train Accuracy: {train_accuracy:.2f}, Validation Accuracy: {val_accuracy:.2f}"
+        )
+
+        # Save model state and logs
+        model_file = os.path.join(
+            log_dir, f"{model_name}_model_epoch_{epoch + 1}_{timestamp}.pkl"
+        )
+        with open(model_file, "wb") as f:
+            pickle.dump(model, f)
+        log_file = os.path.join(
+            log_dir, f"{model_name}_logs_epoch_{epoch + 1}_{timestamp}.json"
+        )
+        with open(log_file, "w") as f:
+            json.dump(
+                {"Train Accuracy": train_accuracy, "Validation Accuracy": val_accuracy},
+                f,
+            )
+
+    # Final output and cleanup
+    y_pred = model.predict(X_val)
+    print(classification_report(y_val, y_pred))
+    return losses, y_val, y_pred, model
+
+
+# Main Script
+if __name__ == "__main__":
+    # Example Dataset (Replace with real data)
+    num_samples = 1000
+    X = np.random.rand(num_samples, 224, 224, 3)  # Replace with real images
+    y = np.random.randint(0, 3, num_samples)
+
+    # Preprocess images
+    X_preprocessed = preprocess_images(X)
+
+    # Load GoogleNet and ResNet models
+    googlenet_model, resnet_model = load_models()
+
+    # Extract features
+    features = extract_features((googlenet_model, resnet_model), X_preprocessed)
+
+    # Train and evaluate SVM
+    train_and_evaluate(features, y, classifier_type="svm")

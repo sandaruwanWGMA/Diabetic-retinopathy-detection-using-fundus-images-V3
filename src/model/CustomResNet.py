@@ -1,28 +1,53 @@
-import tensorflow as tf
 from tensorflow.keras.applications import ResNet50
-from tensorflow.keras.applications.resnet import preprocess_input, decode_predictions
-from tensorflow.keras.preprocessing import image
+from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
+from tensorflow.keras.models import Model
+
 import numpy as np
 
 
 class CustomResNet:
-    def __init__(self):
-        # Load the pre-trained DenseNet121 model with ImageNet weights
-        self.base_model = ResNet50(weights="imagenet")
+    def __init__(self, num_classes=1000):
+        # Initialize the ResNet50 model with the top layer included
+        base_model = ResNet50(
+            include_top=True,  # Include the fully connected top layer for classification
+            weights="imagenet",  # Use pre-trained ImageNet weights
+            input_tensor=None,
+            input_shape=(
+                224,
+                224,
+                3,
+            ),
+            classes=num_classes,  # Specifying 1000 classes as per the original ImageNet training
+            classifier_activation="softmax",  # Classifier activation function
+            name="resnet50",
+        )
 
-        # Freeze all layers except the last one
-        for layer in self.base_model.layers[:-1]:
+        # Freeze all layers in the base model to prevent training
+        for layer in base_model.layers:
             layer.trainable = False
 
-    def get_model(self):
-        return self.base_model
+        # Create the final model
+        self.resnet = Model(inputs=base_model.input, outputs=base_model.output)
+
+    def summary(self):
+        # Display the model's architecture
+        return self.resnet.summary()
+
+    def predict(self, images):
+        # Make predictions using the frozen ResNet50 model
+        predictions = self.resnet.predict(images)
+        return predictions
 
 
-# Instantiate the custom DenseNet model
-# custom_resnet = CustomResNet().get_model()
-# custom_densenet.summary()
+# # Instantiate the class
+# model = CustomResNet()
 
-# random_matrix = tf.random.uniform(shape=(1, 224, 224, 3), minval=0, maxval=1)
-# prediction = custom_resnet.predict(random_matrix)
+# # Display model summary
+# model.summary()
 
-# print(prediction.shape)
+# # Dummy input image (batch size of 1, 224x224x3 RGB)
+# dummy_image = np.random.rand(1, 224, 224, 3) * 255
+
+# # Predict
+# predictions = model.predict(dummy_image)
+# print(f"Predicted class probabilities:\n{predictions.shape}")
