@@ -1,10 +1,7 @@
 from tensorflow.keras.applications import EfficientNetB7
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import GlobalAveragePooling2D, Dense
 from tensorflow.keras.layers import Resizing
 import tensorflow as tf
-
-import numpy as np
 
 
 class CustomDenseNet:
@@ -15,8 +12,8 @@ class CustomDenseNet:
             weights="imagenet",  # Load pre-trained ImageNet weights
             input_tensor=None,  # Input tensor to use as image input for the model
             input_shape=(
-                600,
-                600,
+                224,
+                224,
                 3,
             ),  # Correct input shape for EfficientNetB7 with top
             classes=num_classes,  # Set number of output classes (1000 for ImageNet)
@@ -31,8 +28,8 @@ class CustomDenseNet:
         if input_tensor is None:
             input_tensor = tf.keras.layers.Input(shape=input_shape)
 
-        # Resize input images to the required size (600, 600)
-        resized_input = Resizing(600, 600, interpolation="bilinear")(input_tensor)
+        # Resize input images to the required size (224, 224)
+        resized_input = Resizing(224, 224, interpolation="bilinear")(input_tensor)
 
         # Output of the base model
         outputs = base_model(resized_input)
