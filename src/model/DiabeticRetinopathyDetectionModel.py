@@ -227,7 +227,7 @@ def train_and_evaluate_with_generators(
         losses["Training Loss"].append(1 - train_accuracy)
         losses["Validation Loss"].append(1 - val_accuracy)
 
-        logging.info(
+        print(
             f"Epoch {epoch + 1}: Train Accuracy: {train_accuracy:.2f}, Validation Accuracy: {val_accuracy:.2f}"
         )
 
