@@ -8,7 +8,7 @@ import numpy as np
 
 
 class CustomDenseNet:
-    def __init__(self, input_tensor=None, input_shape=(224, 224, 3), num_classes=1000):
+    def __init__(self, input_tensor=None, input_shape=(512, 512, 3), num_classes=1000):
         # Initialize the EfficientNetB7 model
         base_model = EfficientNetB7(
             include_top=True,  # Include the top layer (fully connected layers)
@@ -57,7 +57,7 @@ class CustomDenseNet:
 # # model.summary()
 
 # # Dummy input image (batch size of 1, 224x224x3 RGB)
-# dummy_image = np.random.rand(5, 224, 224, 3) * 255  # Random image
+# dummy_image = np.random.rand(5, 512, 512, 3) * 255  # Random image
 
 # # Predict
 # predictions = model.predict(dummy_image)
