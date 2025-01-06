@@ -2,15 +2,14 @@ import os
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from keras import backend as K
-from keras.applications.inception_v3 import preprocess_input
-from sklearn.model_selection import train_test_split
 from keras.utils import to_categorical
+from sklearn.model_selection import train_test_split
+from keras.applications.inception_v3 import preprocess_input
 
 
 def preprocess(
     kaggle_base_dir="/kaggle/input/diabetic-retinopathy-blindness-detection-c-data",
-    img_size=(512, 512),
+    img_size=(224, 224),
 ):
     # Load and prepare dataset
     train_labels_path = os.path.join(kaggle_base_dir, "trainLabels.csv")
@@ -40,7 +39,7 @@ def preprocess(
     valid_df = retina_df[retina_df["PatientId"].isin(valid_ids)]
     print("train", train_df.shape[0], "validation", valid_df.shape[0])
 
-    # Data augmentation settings
+    # Data augmentation and preprocessing function
     def tf_image_loader(
         out_size,
         horizontal_flip=True,
@@ -57,7 +56,7 @@ def preprocess(
             X = tf.image.decode_jpeg(
                 tf.io.read_file(X), channels=3 if color_mode == "rgb" else 0
             )
-            X = tf.image.resize(X, out_size)
+            X = tf.image.resize(X, out_size)  # Resize the image to (224, 224)
             if horizontal_flip:
                 X = tf.image.random_flip_left_right(X)
             if vertical_flip:
@@ -74,6 +73,7 @@ def preprocess(
 
         return _func
 
+    # Generator functions for training and validation
     def flow_from_dataframe(
         core_idg, in_df, path_col, y_col, shuffle=True, color_mode="rgb"
     ):
@@ -83,7 +83,9 @@ def preprocess(
             )
             if shuffle:
                 ds = ds.shuffle(buffer_size=len(in_df))
-            ds = ds.map(lambda x, y: (core_idg(x), y))
+            ds = ds.map(
+                lambda x, y: (core_idg(x), y), num_parallel_calls=tf.data.AUTOTUNE
+            )
             return ds.batch(batch_size)
 
         return _func
@@ -101,7 +103,7 @@ def preprocess(
         color_mode="rgb",
     )
 
-    # Generator setup
+    # Create generators
     train_gen = flow_from_dataframe(
         core_idg, train_df, path_col="path", y_col="level_cat"
     )()
