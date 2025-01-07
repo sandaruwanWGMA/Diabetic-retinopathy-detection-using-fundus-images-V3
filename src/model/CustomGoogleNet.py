@@ -24,8 +24,8 @@ class CustomDenseNet:
     def summary(self):
         return self.google_net.summary()
 
-    def predict(self, images):
-        predictions = self.google_net.predict(images)
+    def predict(self, images, **kwargs):
+        predictions = self.google_net.predict(images, **kwargs)
         return predictions
 
 

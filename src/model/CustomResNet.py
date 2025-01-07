@@ -33,9 +33,9 @@ class CustomResNet:
         # Display the model's architecture
         return self.resnet.summary()
 
-    def predict(self, images):
+    def predict(self, images, **kwargs):
         # Make predictions using the frozen ResNet50 model
-        predictions = self.resnet.predict(images)
+        predictions = self.resnet.predict(images, **kwargs)
         return predictions
 
 
