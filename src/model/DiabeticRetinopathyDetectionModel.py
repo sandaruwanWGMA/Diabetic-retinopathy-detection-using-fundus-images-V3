@@ -115,8 +115,10 @@ def train_and_evaluate(
     losses = {"Training Loss": [], "Validation Loss": []}
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
+    num_of_epochs = 200
+
     # Simulated training process
-    for epoch in range(200):  # Replace with the actual number of epochs
+    for epoch in range(num_of_epochs):
         # Simulate losses (replace with actual computations)
         train_loss = np.random.rand() * 0.1 + (10 - epoch) * 0.01
         val_loss = np.random.rand() * 0.1 + (10 - epoch) * 0.015
@@ -126,8 +128,8 @@ def train_and_evaluate(
         losses["Validation Loss"].append(val_loss)
 
         # Print losses to terminal
-        print(
-            f"Epoch {epoch + 1:02d}/10: Training Loss = {train_loss:.4f}, Validation Loss = {val_loss:.4f}"
+        logging(
+            f"Epoch {epoch + 1:02d}/{num_of_epochs}: Training Loss = {train_loss:.4f}, Validation Loss = {val_loss:.4f}"
         )
 
         # Save training logs for this epoch
@@ -183,6 +185,8 @@ def train_and_evaluate_with_generators(
     log_dir="logs",
     model_name="trained_model",
 ):
+    print("Started Training.....")
+
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
     )
@@ -206,8 +210,9 @@ def train_and_evaluate_with_generators(
     else:
         raise ValueError(f"Unsupported classifier type: {classifier_type}")
 
+    num_of_epochs = 200
     # Training and evaluation process
-    for epoch in range(10):
+    for epoch in range(num_of_epochs):
         X_train, y_train = extract_features_from_generator(
             train_generator, googlenet_model, resnet_model
         )
@@ -227,8 +232,12 @@ def train_and_evaluate_with_generators(
         losses["Training Loss"].append(1 - train_accuracy)
         losses["Validation Loss"].append(1 - val_accuracy)
 
+        # print(
+        #     f"Epoch {epoch + 1}: Train Accuracy: {train_accuracy:.2f}, Validation Accuracy: {val_accuracy:.2f}"
+        # )
+
         print(
-            f"Epoch {epoch + 1}: Train Accuracy: {train_accuracy:.2f}, Validation Accuracy: {val_accuracy:.2f}"
+            f"Epoch {epoch + 1:02d}/{num_of_epochs}: Training Loss = {train_accuracy:.2f}, Validation Loss = {val_accuracy:.2f}"
         )
 
         # Save model state and logs

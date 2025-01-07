@@ -22,36 +22,36 @@ from src.utils.plotting import (
 from src.utils.prepare_data import preprocess
 
 
-# class DummyGenerator:
-#     def __init__(self, num_samples, batch_size, target_size, num_classes):
-#         self.num_samples = num_samples
-#         self.samples = num_samples
-#         self.batch_size = batch_size
-#         self.target_size = target_size
-#         self.num_classes = num_classes
+class DummyGenerator:
+    def __init__(self, num_samples, batch_size, target_size, num_classes):
+        self.num_samples = num_samples
+        self.samples = num_samples
+        self.batch_size = batch_size
+        self.target_size = target_size
+        self.num_classes = num_classes
 
-#     def __len__(self):
-#         return int(np.ceil(self.num_samples / self.batch_size))
+    def __len__(self):
+        return int(np.ceil(self.num_samples / self.batch_size))
 
-#     def __iter__(self):
-#         for _ in range(self.__len__()):
-#             # Generate dummy image data
-#             batch_images = np.random.rand(self.batch_size, *self.target_size, 3)
-#             # Generate dummy class indices as 1D array
-#             batch_labels = np.random.randint(0, self.num_classes, self.batch_size)
-#             yield batch_images, batch_labels
+    def __iter__(self):
+        for _ in range(self.__len__()):
+            # Generate dummy image data
+            batch_images = np.random.rand(self.batch_size, *self.target_size, 3)
+            # Generate dummy class indices as 1D array
+            batch_labels = np.random.randint(0, self.num_classes, self.batch_size)
+            yield batch_images, batch_labels
 
 
-# train_generator = DummyGenerator(
-#     num_samples=1000, batch_size=32, target_size=(224, 224), num_classes=3
-# )
-# validation_generator = DummyGenerator(
-#     num_samples=200, batch_size=32, target_size=(224, 224), num_classes=3
-# )
+train_generator = DummyGenerator(
+    num_samples=1000, batch_size=32, target_size=(224, 224), num_classes=3
+)
+validation_generator = DummyGenerator(
+    num_samples=200, batch_size=32, target_size=(224, 224), num_classes=3
+)
 
 # Load GoogleNet and ResNet models
 
-train_generator, validation_generator = preprocess()
+# train_generator, validation_generator = preprocess()
 
 googlenet_model, resnet_model = load_models()
 
