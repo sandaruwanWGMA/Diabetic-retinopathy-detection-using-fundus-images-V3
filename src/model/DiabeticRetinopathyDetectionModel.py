@@ -18,8 +18,8 @@ from sklearn.metrics import classification_report, accuracy_score
 
 import logging
 
-from CustomGoogleNet import CustomDenseNet
-from CustomResNet import CustomResNet
+from model.CustomGoogleNet import CustomDenseNet
+from model.CustomResNet import CustomResNet
 
 
 # 1. Preprocessing function
