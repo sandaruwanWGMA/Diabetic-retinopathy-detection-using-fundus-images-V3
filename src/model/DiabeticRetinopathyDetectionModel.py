@@ -237,7 +237,7 @@ def train_and_evaluate_with_generators(
         # )
 
         print(
-            f"Epoch {epoch + 1:02d}/{num_of_epochs}: Training Loss = {train_accuracy:.2f}, Validation Loss = {val_accuracy:.2f}"
+            f"Epoch {epoch + 1:02d}/{num_of_epochs}: Training Accuracy = {train_accuracy:.2f}, Validation Accuracy = {val_accuracy:.2f}"
         )
 
         # Save model state and logs
