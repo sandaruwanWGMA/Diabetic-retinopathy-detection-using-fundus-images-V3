@@ -18,8 +18,15 @@ from sklearn.metrics import classification_report, accuracy_score
 
 import logging
 
-from model.CustomGoogleNet import CustomDenseNet
-from model.CustomResNet import CustomResNet
+import sys
+
+project_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+sys.path.append(project_root)
+
+from src.model.CustomGoogleNet import CustomDenseNet
+from src.model.CustomResNet import CustomResNet
 
 
 # 1. Preprocessing function
