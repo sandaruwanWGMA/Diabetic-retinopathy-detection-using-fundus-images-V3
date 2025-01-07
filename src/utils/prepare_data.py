@@ -105,10 +105,10 @@ def preprocess(
 
     # Create generators
     train_gen = flow_from_dataframe(
-        core_idg, train_df, path_col="path", y_col="level_cat"
+        core_idg, train_df, path_col="path", y_col="level"
     )()
     valid_gen = flow_from_dataframe(
-        valid_idg, valid_df, path_col="path", y_col="level_cat"
+        valid_idg, valid_df, path_col="path", y_col="level"
     )()
 
     return train_gen, valid_gen
