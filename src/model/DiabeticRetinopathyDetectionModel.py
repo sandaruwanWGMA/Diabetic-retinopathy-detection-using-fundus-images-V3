@@ -220,7 +220,8 @@ def train_and_evaluate_with_generators(
         for epoch in range(num_of_epochs):
             # Trigger callbacks at the start of an epoch
             for callback in callbacks:
-                callback.on_epoch_start(epoch)
+                if hasattr(callback, "on_epoch_start"):
+                    callback.on_epoch_start(epoch)
 
             X_train, y_train = extract_features_from_generator(
                 train_generator, googlenet_model, resnet_model
