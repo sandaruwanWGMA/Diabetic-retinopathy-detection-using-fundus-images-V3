@@ -181,26 +181,26 @@ def train_and_evaluate_with_generators(
     validation_generator,
     googlenet_model,
     resnet_model,
-    classifier_type="SVM",  # Default classifier
+    classifier_type="SVM",
     log_dir="logs",
     model_name="trained_model",
+    callbacks=None,
 ):
-    print("Started Training.....")
+    if callbacks is None:
+        callbacks = []
 
+    print("Started Training.....")
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
     )
 
-    # Ensure directory exists
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
-    # Initialize loss tracking and timestamp for file saving
     losses = {"Training Loss": [], "Validation Loss": []}
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    # Feature scaling and classifier setup
     scaler = StandardScaler()
+
     if classifier_type == "SVM":
         model = SVC(kernel="rbf", probability=True)
     elif classifier_type == "RF":
@@ -210,52 +210,73 @@ def train_and_evaluate_with_generators(
     else:
         raise ValueError(f"Unsupported classifier type: {classifier_type}")
 
-    num_of_epochs = 200
-    # Training and evaluation process
-    for epoch in range(num_of_epochs):
-        X_train, y_train = extract_features_from_generator(
-            train_generator, googlenet_model, resnet_model
-        )
-        X_val, y_val = extract_features_from_generator(
-            validation_generator, googlenet_model, resnet_model
-        )
+    num_of_epochs = 2000
 
-        X_train = scaler.fit_transform(X_train)
-        X_val = scaler.transform(X_val)
+    # Trigger callbacks at the start of training
+    for callback in callbacks:
+        callback.on_train_start()
 
-        model.fit(X_train, y_train)
-        y_pred_train = model.predict(X_train)
-        y_pred_val = model.predict(X_val)
+    try:
+        for epoch in range(num_of_epochs):
+            # Trigger callbacks at the start of an epoch
+            for callback in callbacks:
+                callback.on_epoch_start(epoch)
 
-        train_accuracy = accuracy_score(y_train, y_pred_train)
-        val_accuracy = accuracy_score(y_val, y_pred_val)
-        losses["Training Loss"].append(1 - train_accuracy)
-        losses["Validation Loss"].append(1 - val_accuracy)
-
-        # print(
-        #     f"Epoch {epoch + 1}: Train Accuracy: {train_accuracy:.2f}, Validation Accuracy: {val_accuracy:.2f}"
-        # )
-
-        print(
-            f"Epoch {epoch + 1:02d}/{num_of_epochs}: Training Accuracy = {train_accuracy:.2f}, Validation Accuracy = {val_accuracy:.2f}"
-        )
-
-        # Save model state and logs
-        model_file = os.path.join(
-            log_dir, f"{model_name}_model_epoch_{epoch + 1}_{timestamp}.pkl"
-        )
-        with open(model_file, "wb") as f:
-            pickle.dump(model, f)
-        log_file = os.path.join(
-            log_dir, f"{model_name}_logs_epoch_{epoch + 1}_{timestamp}.json"
-        )
-        with open(log_file, "w") as f:
-            json.dump(
-                {"Train Accuracy": train_accuracy, "Validation Accuracy": val_accuracy},
-                f,
+            X_train, y_train = extract_features_from_generator(
+                train_generator, googlenet_model, resnet_model
+            )
+            X_val, y_val = extract_features_from_generator(
+                validation_generator, googlenet_model, resnet_model
             )
 
-    # Final output and cleanup
+            X_train = scaler.fit_transform(X_train)
+            X_val = scaler.transform(X_val)
+
+            model.fit(X_train, y_train)
+            y_pred_train = model.predict(X_train)
+            y_pred_val = model.predict(X_val)
+
+            train_accuracy = accuracy_score(y_train, y_pred_train)
+            val_accuracy = accuracy_score(y_val, y_pred_val)
+            losses["Training Loss"].append(1 - train_accuracy)
+            losses["Validation Loss"].append(1 - val_accuracy)
+
+            logs = {
+                "Training Loss": 1 - train_accuracy,
+                "Validation Loss": 1 - val_accuracy,
+            }
+            print(
+                f"Epoch {epoch + 1:02d}/{num_of_epochs}: Training Accuracy = {train_accuracy:.2f}, Validation Accuracy = {val_accuracy:.2f}"
+            )
+
+            # Trigger callbacks at the end of an epoch
+            for callback in callbacks:
+                callback.on_epoch_end(epoch, logs)
+
+            model_file = os.path.join(
+                log_dir, f"{model_name}_model_epoch_{epoch + 1}_{timestamp}.pkl"
+            )
+            with open(model_file, "wb") as f:
+                pickle.dump(model, f)
+
+            log_file = os.path.join(
+                log_dir, f"{model_name}_logs_epoch_{epoch + 1}_{timestamp}.json"
+            )
+            with open(log_file, "w") as f:
+                json.dump(
+                    {
+                        "Train Accuracy": train_accuracy,
+                        "Validation Accuracy": val_accuracy,
+                    },
+                    f,
+                )
+    except StopIteration:
+        print("Training stopped early.")
+
+    # Trigger callbacks at the end of training
+    for callback in callbacks:
+        callback.on_train_end()
+
     y_pred = model.predict(X_val)
     print(classification_report(y_val, y_pred))
     return losses, y_val, y_pred, model

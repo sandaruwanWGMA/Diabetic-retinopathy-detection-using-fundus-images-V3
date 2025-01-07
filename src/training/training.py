@@ -2,6 +2,7 @@ import numpy as np
 
 import os
 import sys
+import pickle
 
 project_root = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -20,51 +21,69 @@ from src.utils.plotting import (
 )
 
 from src.utils.prepare_data import preprocess
+from src.utils.schedulers import CustomEarlyStopping
 
 
-class DummyGenerator:
-    def __init__(self, num_samples, batch_size, target_size, num_classes):
-        self.num_samples = num_samples
-        self.samples = num_samples
-        self.batch_size = batch_size
-        self.target_size = target_size
-        self.num_classes = num_classes
+# class DummyGenerator:
+#     def __init__(self, num_samples, batch_size, target_size, num_classes):
+#         self.num_samples = num_samples
+#         self.samples = num_samples
+#         self.batch_size = batch_size
+#         self.target_size = target_size
+#         self.num_classes = num_classes
 
-    def __len__(self):
-        return int(np.ceil(self.num_samples / self.batch_size))
+#     def __len__(self):
+#         return int(np.ceil(self.num_samples / self.batch_size))
 
-    def __iter__(self):
-        for _ in range(self.__len__()):
-            # Generate dummy image data
-            batch_images = np.random.rand(self.batch_size, *self.target_size, 3)
-            # Generate dummy class indices as 1D array
-            batch_labels = np.random.randint(0, self.num_classes, self.batch_size)
-            yield batch_images, batch_labels
+#     def __iter__(self):
+#         for _ in range(self.__len__()):
+#             # Generate dummy image data
+#             batch_images = np.random.rand(self.batch_size, *self.target_size, 3)
+#             # Generate dummy class indices as 1D array
+#             batch_labels = np.random.randint(0, self.num_classes, self.batch_size)
+#             yield batch_images, batch_labels
 
 
-train_generator = DummyGenerator(
-    num_samples=1000, batch_size=32, target_size=(224, 224), num_classes=3
-)
-validation_generator = DummyGenerator(
-    num_samples=200, batch_size=32, target_size=(224, 224), num_classes=3
-)
+# train_generator = DummyGenerator(
+#     num_samples=1000, batch_size=32, target_size=(224, 224), num_classes=3
+# )
+# validation_generator = DummyGenerator(
+#     num_samples=200, batch_size=32, target_size=(224, 224), num_classes=3
+# )
+
+train_generator, validation_generator = preprocess()
 
 # Load GoogleNet and ResNet models
-
-# train_generator, validation_generator = preprocess()
-
 googlenet_model, resnet_model = load_models()
 
 # Train and evaluate using generators
+custom_early_stopping = CustomEarlyStopping(patience=15, min_delta=0.01)
+
 losses, y_val, y_pred, trained_model = train_and_evaluate_with_generators(
-    train_generator,
-    validation_generator,
-    googlenet_model,
-    resnet_model,
+    train_generator=train_generator,
+    validation_generator=validation_generator,
+    googlenet_model=googlenet_model,
+    resnet_model=resnet_model,
     classifier_type="SVM",
     log_dir="logs",
-    model_name="SVM_DiabeticRetinopathy",
+    model_name="custom_trained_model",
+    callbacks=[custom_early_stopping],
 )
+
+# Ensure the saved_models directory exists
+saved_models_dir = "saved_models"
+if not os.path.exists(saved_models_dir):
+    os.makedirs(saved_models_dir)
+
+# Define the path to save the trained model
+model_save_path = os.path.join(saved_models_dir, "trained_model.pkl")
+
+# Save the model
+with open(model_save_path, "wb") as f:
+    pickle.dump(trained_model, f)
+
+print(f"Trained model saved successfully to {model_save_path}")
+
 
 # Save classification report and plot confusion matrix
 save_classification_report(y_val, y_pred)
