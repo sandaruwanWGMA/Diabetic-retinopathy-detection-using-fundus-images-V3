@@ -53,12 +53,17 @@ from src.utils.schedulers import CustomEarlyStopping
 
 train_generator, validation_generator = preprocess()
 
-# Load GoogleNet and ResNet models
-googlenet_model, resnet_model = load_models()
-
 # Train and evaluate using generators
 custom_early_stopping = CustomEarlyStopping(patience=15, min_delta=0.01)
 
+# Load GoogleNet and ResNet models
+googlenet_model, resnet_model = load_models()
+
+# Ensure models are on GPU
+googlenet_model = googlenet_model.to("cuda")
+resnet_model = resnet_model.to("cuda")
+
+# Train and evaluate using GPU
 losses, y_val, y_pred, trained_model = train_and_evaluate_with_generators(
     train_generator=train_generator,
     validation_generator=validation_generator,
