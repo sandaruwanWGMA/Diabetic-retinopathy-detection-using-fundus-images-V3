@@ -9,6 +9,9 @@ class CustomEarlyStopping(Callback):
         self.wait = 0
         self.best_loss = float("inf")
 
+    def on_train_start(self):
+        print("Training has started. Monitoring for early stopping conditions.")
+
     def on_epoch_end(self, epoch, logs=None):
         val_loss = logs.get("Validation Loss", float("inf"))
         if val_loss < self.best_loss - self.min_delta:
