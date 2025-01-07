@@ -18,6 +18,9 @@ from sklearn.metrics import classification_report, accuracy_score
 
 import logging
 
+from CustomGoogleNet import CustomDenseNet
+from CustomResNet import CustomResNet
+
 
 # 1. Preprocessing function
 def preprocess_images(images):
@@ -28,21 +31,10 @@ def preprocess_images(images):
 # 2. Load GoogleNet and ResNet-18 for feature extraction
 def load_models(input_shape=(224, 224, 3)):
     # GoogleNet (InceptionV3 is a close alternative)
-    googlenet_base = InceptionV3(
-        weights="imagenet", include_top=False, input_shape=input_shape
-    )
-    googlenet_model = Model(
-        inputs=googlenet_base.input,
-        outputs=GlobalAveragePooling2D()(googlenet_base.output),
-    )
+    googlenet_model = CustomDenseNet()
 
     # ResNet-18 (ResNet50 is used as a substitute)
-    resnet_base = ResNet50(
-        weights="imagenet", include_top=False, input_shape=input_shape
-    )
-    resnet_model = Model(
-        inputs=resnet_base.input, outputs=GlobalAveragePooling2D()(resnet_base.output)
-    )
+    resnet_model = CustomResNet()
 
     return googlenet_model, resnet_model
 
