@@ -56,17 +56,7 @@ validation_generator = DummyGenerator(
 googlenet_model, resnet_model = load_models()
 
 # Train and evaluate using generators
-losses, trained_model = train_and_evaluate_with_generators(
-    train_generator,
-    validation_generator,
-    googlenet_model,
-    resnet_model,
-    classifier_type="SVM",
-    log_dir="logs",
-    model_name="SVM_DiabeticRetinopathy",
-)
-
-losses, y_test, y_pred, trained_model = train_and_evaluate_with_generators(
+losses, y_val, y_pred, trained_model = train_and_evaluate_with_generators(
     train_generator,
     validation_generator,
     googlenet_model,
@@ -77,8 +67,8 @@ losses, y_test, y_pred, trained_model = train_and_evaluate_with_generators(
 )
 
 # Save classification report and plot confusion matrix
-save_classification_report(y_test, y_pred)
-plot_confusion_matrix(y_test, y_pred, classes=[0, 1, 2, 3, 4])
+save_classification_report(y_val, y_pred)
+plot_confusion_matrix(y_val, y_pred, classes=[0, 1, 2, 3, 4])
 
 # Existing plotting and saving functionality
 plot_loss(losses, title="Loss Function Over Time", save_path="loss_plot.png")
