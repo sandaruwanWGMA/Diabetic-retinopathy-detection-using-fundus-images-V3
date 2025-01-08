@@ -39,14 +39,14 @@ def preprocess_images(images):
 # 2. Load GoogleNet and ResNet-18 for feature extraction
 def load_models(input_shape=(224, 224, 3)):
     # GoogleNet (InceptionV3 is a close alternative)
-    # googlenet_model = CustomDenseNet()
+    googlenet_model = CustomDenseNet()
 
-    mobilenet_model = CustomMobileNet()
+    # mobilenet_model = CustomMobileNet()
 
     # ResNet-18 (ResNet50 is used as a substitute)
     resnet_model = CustomResNet()
 
-    return mobilenet_model, resnet_model
+    return googlenet_model, resnet_model
 
 
 # 3. Feature Extraction
@@ -163,13 +163,13 @@ def train_and_evaluate(
     return losses, model
 
 
-def extract_features_from_generator(generator, mobilenet_model, resnet_model):
+def extract_features_from_generator(generator, googlenet_model, resnet_model):
     combined_features = []
     labels = []
     for batch_images, batch_labels in generator:
-        mobilenet_features = mobilenet_model.predict(batch_images, verbose=0)
+        googlenet_features = googlenet_model.predict(batch_images, verbose=0)
         resnet_features = resnet_model.predict(batch_images, verbose=0)
-        batch_features = np.concatenate([mobilenet_features, resnet_features], axis=1)
+        batch_features = np.concatenate([googlenet_features, resnet_features], axis=1)
         combined_features.append(batch_features)
         labels.append(batch_labels)
     combined_features = np.vstack(combined_features)

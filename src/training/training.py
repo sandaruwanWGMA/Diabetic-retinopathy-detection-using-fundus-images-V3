@@ -71,13 +71,13 @@ train_generator, validation_generator = preprocess()
 custom_early_stopping = CustomEarlyStopping(patience=15, min_delta=0.01)
 
 # Load GoogleNet and ResNet models
-mobilenet_model, resnet_model = load_models()
+googlenet_model, resnet_model = load_models()
 
 # Train and evaluate using GPU
 losses, y_val, y_pred, trained_model = train_and_evaluate_with_generators(
     train_generator=train_generator,
     validation_generator=validation_generator,
-    googlenet_model=mobilenet_model,
+    googlenet_model=googlenet_model,
     resnet_model=resnet_model,
     classifier_type="SVM",
     log_dir="logs",
