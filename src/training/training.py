@@ -51,6 +51,17 @@ from src.utils.schedulers import CustomEarlyStopping
 #     num_samples=200, batch_size=32, target_size=(224, 224), num_classes=3
 # )
 
+import tensorflow as tf
+
+gpus = tf.config.list_physical_devices("GPU")
+if gpus:
+    print(f"GPUs detected: {[gpu.name for gpu in gpus]}")
+    for gpu in gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)  # Avoid memory issues
+else:
+    print("No GPU detected. Training will fall back to CPU.")
+
+
 train_generator, validation_generator = preprocess()
 
 # Train and evaluate using generators
