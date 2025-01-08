@@ -4,6 +4,9 @@ import os
 import sys
 import pickle
 
+os.environ["TF_XLA_FLAGS"] = "--tf_xla_enable_xla_devices=0"
+
+
 project_root = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 )
