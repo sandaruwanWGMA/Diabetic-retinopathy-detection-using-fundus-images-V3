@@ -90,7 +90,7 @@ def preprocess(
 
         return _func
 
-    batch_size = 2
+    batch_size = 8
     core_idg = tf_image_loader(out_size=img_size, vertical_flip=True, color_mode="rgb")
     valid_idg = tf_image_loader(
         out_size=img_size,
