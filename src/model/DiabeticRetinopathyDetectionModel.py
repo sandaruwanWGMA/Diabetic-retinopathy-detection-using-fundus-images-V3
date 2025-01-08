@@ -27,6 +27,7 @@ sys.path.append(project_root)
 
 from src.model.CustomGoogleNet import CustomDenseNet
 from src.model.CustomResNet import CustomResNet
+from src.model.CustomMobileNet import CustomMobileNet
 
 
 # 1. Preprocessing function
@@ -38,12 +39,14 @@ def preprocess_images(images):
 # 2. Load GoogleNet and ResNet-18 for feature extraction
 def load_models(input_shape=(224, 224, 3)):
     # GoogleNet (InceptionV3 is a close alternative)
-    googlenet_model = CustomDenseNet()
+    # googlenet_model = CustomDenseNet()
+
+    mobilenet_model = CustomMobileNet
 
     # ResNet-18 (ResNet50 is used as a substitute)
     resnet_model = CustomResNet()
 
-    return googlenet_model, resnet_model
+    return mobilenet_model, resnet_model
 
 
 # 3. Feature Extraction
