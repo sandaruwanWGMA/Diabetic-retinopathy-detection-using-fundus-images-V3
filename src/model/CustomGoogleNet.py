@@ -1,4 +1,4 @@
-from tensorflow.keras.applications import EfficientNetB7
+from tensorflow.keras.applications import EfficientNetB0
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Resizing
 import tensorflow as tf
@@ -9,7 +9,7 @@ class CustomDenseNet:
     def __init__(self, input_shape=(224, 224, 3), num_classes=1000):
         input_tensor = Input(shape=input_shape)
 
-        base_model = EfficientNetB7(
+        base_model = EfficientNetB0(
             include_top=True,
             weights="imagenet",
             input_tensor=input_tensor,
