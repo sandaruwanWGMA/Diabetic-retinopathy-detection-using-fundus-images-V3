@@ -212,10 +212,6 @@ def extract_features_from_generator(generator, googlenet_model, resnet_model):
         combined_features.append(batch_features)
         labels.append(batch_labels)
 
-        # Break after a single batch for testing (Optional)
-        # Remove this break statement for full processing
-        break  
-
     # Stack features and labels into arrays
     combined_features = np.vstack(combined_features)
     labels = np.concatenate(labels)
