@@ -67,6 +67,10 @@ else:
 
 train_generator, validation_generator = preprocess()
 
+train_subset = [next(train_generator) for _ in range(2)]  # Load 2 batches
+valid_subset = [next(validation_generator) for _ in range(2)]
+
+
 # Train and evaluate using generators
 custom_early_stopping = CustomEarlyStopping(patience=15, min_delta=0.01)
 
@@ -75,8 +79,8 @@ googlenet_model, resnet_model = load_models()
 
 # Train and evaluate using GPU
 losses, y_val, y_pred, trained_model = train_and_evaluate_with_generators(
-    train_generator=train_generator,
-    validation_generator=validation_generator,
+    train_generator=train_subset,
+    validation_generator=valid_subset,
     googlenet_model=googlenet_model,
     resnet_model=resnet_model,
     classifier_type="SVM",
