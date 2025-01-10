@@ -163,17 +163,67 @@ def train_and_evaluate(
     return losses, model
 
 
+# def extract_features_from_generator(generator, googlenet_model, resnet_model):
+#     combined_features = []
+#     labels = []
+
+#     for batch_images, batch_labels in generator:
+#         # Extract features from GoogleNet
+#         googlenet_features = googlenet_model.predict(batch_images, verbose=0)
+#         # Extract features from ResNet
+#         resnet_features = resnet_model.predict(batch_images, verbose=0)
+#         # Combine the features
+#         batch_features = np.concatenate([googlenet_features, resnet_features], axis=1)
+
+#         combined_features.append(batch_features)
+#         labels.append(batch_labels)
+
+#     # Stack features and labels into arrays
+#     combined_features = np.vstack(combined_features)
+#     labels = np.concatenate(labels)
+#     return combined_features, labels
+
 def extract_features_from_generator(generator, googlenet_model, resnet_model):
     combined_features = []
     labels = []
-    for batch_images, batch_labels in generator:
-        googlenet_features = googlenet_model.predict(batch_images, verbose=0)
-        resnet_features = resnet_model.predict(batch_images, verbose=0)
+
+    print("Starting feature extraction from generator...")
+
+    for i, (batch_images, batch_labels) in enumerate(generator):
+        print(f"Processing batch {i + 1}...")  # Debugging: Current batch index
+        print(f"Batch Images Shape: {batch_images.shape}")  # Debugging: Shape of the image batch
+        print(f"Batch Labels Shape: {batch_labels.shape}")  # Debugging: Shape of the label batch
+
+        # Extract features from GoogleNet
+        print("Extracting features from GoogleNet...")
+        googlenet_features = googlenet_model.predict(batch_images, verbose=1)
+        print(f"GoogleNet Features Shape: {googlenet_features.shape}")  # Debugging: Shape of extracted features
+
+        # Extract features from ResNet
+        print("Extracting features from ResNet...")
+        resnet_features = resnet_model.predict(batch_images, verbose=1)
+        print(f"ResNet Features Shape: {resnet_features.shape}")  # Debugging: Shape of extracted features
+
+        # Combine the features
         batch_features = np.concatenate([googlenet_features, resnet_features], axis=1)
+        print(f"Combined Features Shape: {batch_features.shape}")  # Debugging: Shape after combining features
+
+        # Append features and labels
         combined_features.append(batch_features)
         labels.append(batch_labels)
+
+        # Break after a single batch for testing (Optional)
+        # Remove this break statement for full processing
+        break  
+
+    # Stack features and labels into arrays
     combined_features = np.vstack(combined_features)
     labels = np.concatenate(labels)
+
+    print("Feature extraction completed.")
+    print(f"Final Combined Features Shape: {combined_features.shape}")  # Debugging: Final feature shape
+    print(f"Final Labels Shape: {labels.shape}")  # Debugging: Final labels shape
+
     return combined_features, labels
 
 
