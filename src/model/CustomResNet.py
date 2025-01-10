@@ -19,7 +19,6 @@ class CustomResNet:
             ),
             classes=num_classes,  # Specifying 1000 classes as per the original ImageNet training
             classifier_activation="softmax",  # Classifier activation function
-            name="resnet50",
         )
 
         # Freeze all layers in the base model to prevent training
@@ -37,7 +36,7 @@ class CustomResNet:
         # Make predictions using the frozen ResNet50 model
         predictions = self.resnet.predict(images, **kwargs)
         return predictions
-
+    
 
 # # Instantiate the class
 # model = CustomResNet()
