@@ -212,7 +212,7 @@ def train_and_evaluate_with_generators(
     else:
         raise ValueError(f"Unsupported classifier type: {classifier_type}")
 
-    num_of_epochs = 2000
+    num_of_epochs = 1000
 
     # Trigger callbacks at the start of training
     for callback in callbacks:

@@ -5,7 +5,7 @@ import seaborn as sns
 from sklearn.metrics import classification_report, confusion_matrix
 
 
-def plot_loss(losses, title="Loss Over Time", save_path=None):
+def plot_loss(losses, title="Loss Over Epochs", save_path=None):
     """
     Plots the loss function over time.
 
