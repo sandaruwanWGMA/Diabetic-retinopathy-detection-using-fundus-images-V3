@@ -23,7 +23,7 @@ from src.utils.plotting import (
     plot_confusion_matrix,
 )
 
-from src.utils.prepare_data import preprocess
+from src.utils.prepare_data import preprocess, generator
 from src.utils.schedulers import CustomEarlyStopping
 
 
@@ -56,53 +56,36 @@ from src.utils.schedulers import CustomEarlyStopping
 
 import tensorflow as tf
 
-gpus = tf.config.list_physical_devices("GPU")
-if gpus:
-    print(f"GPUs detected: {[gpu.name for gpu in gpus]}")
-    for gpu in gpus:
-        tf.config.experimental.set_memory_growth(gpu, True)  # Avoid memory issues
-else:
-    print("No GPU detected. Training will fall back to CPU.")
+train_chunks, validation_generator = preprocess(n_splits=10)
 
-
-train_generator, validation_generator = preprocess()
-
-train_subset = [next(train_generator) for _ in range(2)]  # Load 2 batches
-valid_subset = [next(validation_generator) for _ in range(2)]
-
-
-# Train and evaluate using generators
-custom_early_stopping = CustomEarlyStopping(patience=15, min_delta=0.01)
-
-# Load GoogleNet and ResNet models
+# Load models
 googlenet_model, resnet_model = load_models()
 
-# Train and evaluate using GPU
-losses, y_val, y_pred, trained_model = train_and_evaluate_with_generators(
-    train_generator=train_subset,
-    validation_generator=valid_subset,
-    googlenet_model=googlenet_model,
-    resnet_model=resnet_model,
-    classifier_type="SVM",
-    log_dir="logs",
-    model_name="custom_trained_model",
-    callbacks=[custom_early_stopping],
-)
+custom_early_stopping = CustomEarlyStopping(patience=15, min_delta=0.01)
 
-# Ensure the saved_models directory exists
-saved_models_dir = "saved_models"
-if not os.path.exists(saved_models_dir):
-    os.makedirs(saved_models_dir)
+for i, chunk in enumerate(train_chunks):
+    print(f"Training on chunk {i + 1}/{len(train_chunks)}")
+    train_generator = generator(chunk, path_col="path", y_col="level", batch_size=8)
+    
+    losses, y_val, y_pred, trained_model = train_and_evaluate_with_generators(
+        train_generator=train_generator,
+        validation_generator=validation_generator,
+        googlenet_model=googlenet_model,
+        resnet_model=resnet_model,
+        classifier_type="SVM",
+        log_dir=f"logs_chunk_{i + 1}",
+        model_name=f"custom_trained_model_chunk_{i + 1}",
+        callbacks=[custom_early_stopping],
+    )
+    
+    # Save model after training on each chunk
+    model_save_path = os.path.join(
+        "saved_models", f"trained_model_chunk_{i + 1}.pkl"
+    )
+    with open(model_save_path, "wb") as f:
+        pickle.dump(trained_model, f)
 
-# Define the path to save the trained model
-model_save_path = os.path.join(saved_models_dir, "trained_model.pkl")
-
-# Save the model
-with open(model_save_path, "wb") as f:
-    pickle.dump(trained_model, f)
-
-print(f"Trained model saved successfully to {model_save_path}")
-
+    print(f"Chunk {i + 1} training complete. Model saved to {model_save_path}")
 
 # Save classification report and plot confusion matrix
 save_classification_report(y_val, y_pred)
