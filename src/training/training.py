@@ -76,18 +76,22 @@ custom_early_stopping = CustomEarlyStopping(patience=15, min_delta=0.01)
 # Load GoogleNet and ResNet models
 googlenet_model, resnet_model = load_models()
 
+num_classes = 5
+
 # Train classifier incrementally with epochs
 losses, y_val, y_pred, trained_model = incremental_train_classifier_with_epochs(
     train_generator=train_generator,
     validation_generator=validation_generator,
     googlenet_model=googlenet_model,
     resnet_model=resnet_model,
+    num_classes=num_classes,
     classifier_type="SGD",
     log_dir="logs",
     model_name="diabetic_retinopathy_model",
-    num_epochs=100,
+    num_epochs=10,
     callbacks=[custom_early_stopping],
 )
+
 
 # Ensure the saved_models directory exists
 saved_models_dir = "saved_models"
