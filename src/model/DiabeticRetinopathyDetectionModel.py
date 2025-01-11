@@ -577,16 +577,20 @@ def incremental_train_classifier_with_epochs(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     scaler = StandardScaler()
 
+    # Precompute class weights
+    print("[INFO] Computing class weights...")
+    dummy_labels = np.concatenate(
+        [np.argmax(labels, axis=1) for _, labels in train_generator]
+    )
+    class_weights = compute_class_weight(
+        class_weight="balanced", classes=np.arange(num_classes), y=dummy_labels
+    )
+    class_weights_dict = dict(enumerate(class_weights))
+    print(f"[INFO] Computed Class Weights: {class_weights_dict}")
+
     # Initialize the model
     print(f"[INFO] Initializing classifier: {classifier_type}")
-    if classifier_type == "SGD":
-        model = SGDClassifier(
-            loss="log_loss",  # Logistic regression for probabilities
-            penalty="l2",
-            max_iter=1,
-            warm_start=True,
-        )
-    elif classifier_type == "NN":
+    if classifier_type == "NN":
         model = build_feature_based_model(input_dim=2000, num_classes=num_classes)
     else:
         raise ValueError(f"Unsupported classifier type: {classifier_type}")
@@ -603,13 +607,14 @@ def incremental_train_classifier_with_epochs(
             y_train_true = []
             y_train_pred = []
 
+            # Trigger callbacks at the start of an epoch
+            for callback in callbacks:
+                if hasattr(callback, "on_epoch_start"):
+                    callback.on_epoch_start(epoch)
+
             for batch_images, batch_labels in train_generator:
                 batch_count += 1
                 print(f"[INFO] Training: Processing batch {batch_count}...")
-
-                # Convert one-hot encoded labels to class indices (for SGD)
-                if classifier_type == "SGD":
-                    batch_labels = np.argmax(batch_labels, axis=1)
 
                 # Extract features for the current batch
                 googlenet_features = googlenet_model.predict(batch_images, verbose=0)
@@ -621,34 +626,27 @@ def incremental_train_classifier_with_epochs(
                 # Scale features
                 batch_features = scaler.fit_transform(batch_features)
 
-                if classifier_type == "SGD":
-                    # Train SGD incrementally
-                    model.partial_fit(
-                        batch_features, batch_labels, classes=np.arange(num_classes)
-                    )
-                elif classifier_type == "NN":
-                    # Train NN incrementally
+                # If batch_labels are class indices, convert to one-hot
+                if len(batch_labels.shape) == 1 or batch_labels.shape[1] != num_classes:
+                    batch_labels_one_hot = to_categorical(batch_labels, num_classes)
+                else:
+                    # Use the labels as-is if they are already one-hot encoded
+                    batch_labels_one_hot = batch_labels
 
-                    # If batch_labels are class indices, convert to one-hot
-                    if (
-                        len(batch_labels.shape) == 1
-                        or batch_labels.shape[1] != num_classes
-                    ):
-                        batch_labels_one_hot = to_categorical(batch_labels, num_classes)
-                    else:
-                        # Use the labels as-is if they are already one-hot encoded
-                        batch_labels_one_hot = batch_labels
-
-                    model.fit(batch_features, batch_labels_one_hot, epochs=1, verbose=0)
+                # Train NN incrementally with class weights
+                model.fit(
+                    batch_features,
+                    batch_labels_one_hot,
+                    epochs=1,
+                    verbose=0,
+                    class_weight=class_weights_dict,
+                )
 
                 # Track training accuracy for the batch
                 y_train_true.extend(batch_labels)
-                if classifier_type == "NN":
-                    y_train_pred.extend(
-                        np.argmax(model.predict(batch_features), axis=1)
-                    )
-                elif classifier_type == "SGD":
-                    y_train_pred.extend(model.predict(batch_features))
+                y_train_pred.extend(
+                    np.argmax(model.predict(batch_features, verbose=0), axis=1)
+                )
 
             # Calculate training accuracy for the epoch
             train_accuracy = accuracy_score(y_train_true, y_train_pred)
@@ -663,9 +661,6 @@ def incremental_train_classifier_with_epochs(
             for batch_images, batch_labels in validation_generator:
                 print(f"[INFO] Validation: Processing batch...")
 
-                if classifier_type == "SGD":
-                    batch_labels = np.argmax(batch_labels, axis=1)
-
                 # Extract features for validation batch
                 googlenet_features = googlenet_model.predict(batch_images, verbose=0)
                 resnet_features = resnet_model.predict(batch_images, verbose=0)
@@ -677,17 +672,21 @@ def incremental_train_classifier_with_epochs(
                 batch_features = scaler.transform(batch_features)
 
                 # Predict validation accuracy
-                if classifier_type == "NN":
-                    y_pred_batch = np.argmax(model.predict(batch_features), axis=1)
-                elif classifier_type == "SGD":
-                    y_pred_batch = model.predict(batch_features)
-
+                y_pred_batch = np.argmax(
+                    model.predict(batch_features, verbose=0), axis=1
+                )
                 y_val_pred.extend(y_pred_batch)
                 y_val_true.extend(batch_labels)
 
             # Calculate validation accuracy for the epoch
             val_accuracy = accuracy_score(y_val_true, y_val_pred)
             losses["Validation Loss"].append(1 - val_accuracy)
+
+            # Trigger callbacks at the end of the epoch
+            logs = {"train_accuracy": train_accuracy, "val_accuracy": val_accuracy}
+            for callback in callbacks:
+                if hasattr(callback, "on_epoch_end"):
+                    callback.on_epoch_end(epoch, logs)
 
             print(
                 f"[INFO] Epoch {epoch}/{num_epochs}: Training Accuracy = {train_accuracy:.4f}, Validation Accuracy = {val_accuracy:.4f}"
@@ -724,6 +723,11 @@ def incremental_train_classifier_with_epochs(
                 print(f"[INFO] Saved SGD model to {model_file}")
 
         print("[INFO] Training on all epochs completed.")
+
+        # Trigger callbacks at the end of training
+        for callback in callbacks:
+            if hasattr(callback, "on_train_end"):
+                callback.on_train_end()
 
         print("\n[INFO] Final Classification Report (Validation):")
         print(classification_report(y_val_true, y_val_pred))
