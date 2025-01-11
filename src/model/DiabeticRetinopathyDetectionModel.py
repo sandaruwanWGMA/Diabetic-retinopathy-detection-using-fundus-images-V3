@@ -628,7 +628,17 @@ def incremental_train_classifier_with_epochs(
                     )
                 elif classifier_type == "NN":
                     # Train NN incrementally
-                    batch_labels_one_hot = to_categorical(batch_labels, num_classes)
+
+                    # If batch_labels are class indices, convert to one-hot
+                    if (
+                        len(batch_labels.shape) == 1
+                        or batch_labels.shape[1] != num_classes
+                    ):
+                        batch_labels_one_hot = to_categorical(batch_labels, num_classes)
+                    else:
+                        # Use the labels as-is if they are already one-hot encoded
+                        batch_labels_one_hot = batch_labels
+
                     model.fit(batch_features, batch_labels_one_hot, epochs=1, verbose=0)
 
                 # Track training accuracy for the batch
@@ -685,18 +695,33 @@ def incremental_train_classifier_with_epochs(
 
             # Save the model after every epoch
             if classifier_type == "NN":
-                model_file = os.path.join(
-                    log_dir, f"{model_name}_epoch_{epoch}_{timestamp}.h5"
+                # Save model weights
+                weights_file = os.path.join(
+                    log_dir, f"{model_name}_epoch_{epoch}_{timestamp}.weights.h5"
                 )
-                model.save(model_file)
+                model.save_weights(weights_file)
+
+                # Save model architecture as JSON
+                architecture_file = os.path.join(
+                    log_dir, f"{model_name}_epoch_{epoch}_{timestamp}.json"
+                )
+                model_json = model.to_json()
+                with open(architecture_file, "w") as json_file:
+                    json_file.write(model_json)
+
+                print(
+                    f"[INFO] Saved NN weights to {weights_file} and architecture to {architecture_file}"
+                )
+
             elif classifier_type == "SGD":
+                # Save SGD model using pickle
                 model_file = os.path.join(
                     log_dir, f"{model_name}_epoch_{epoch}_{timestamp}.pkl"
                 )
                 with open(model_file, "wb") as f:
                     pickle.dump(model, f)
 
-            print(f"[INFO] Saved model to {model_file}")
+                print(f"[INFO] Saved SGD model to {model_file}")
 
         print("[INFO] Training on all epochs completed.")
 

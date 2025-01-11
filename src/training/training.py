@@ -176,12 +176,20 @@ saved_models_dir = "saved_models"
 if not os.path.exists(saved_models_dir):
     os.makedirs(saved_models_dir)
 
-# Define the path to save the trained model
-model_save_path = os.path.join(saved_models_dir, "trained_nn_model.h5")
+# Save model weights
+weights_save_path = os.path.join(saved_models_dir, "trained_nn_model.weights.h5")
+trained_model.save_weights(weights_save_path)
 
-# Save the NN model
-trained_model.save(model_save_path)
-print(f"Trained Neural Network model saved successfully to {model_save_path}")
+# Save model architecture
+architecture_save_path = os.path.join(saved_models_dir, "trained_nn_model.json")
+model_json = trained_model.to_json()
+with open(architecture_save_path, "w") as json_file:
+    json_file.write(model_json)
+
+print(f"Trained Neural Network weights saved successfully to {weights_save_path}")
+print(
+    f"Trained Neural Network architecture saved successfully to {architecture_save_path}"
+)
 
 # Save classification report and plot confusion matrix
 save_classification_report(y_val, y_pred, filename="classification_report_nn.csv")
