@@ -456,6 +456,7 @@ def incremental_train_classifier_with_epochs(
     validation_generator,
     googlenet_model,
     resnet_model,
+    num_classes,
     classifier_type="SGD",
     log_dir="logs",
     model_name="trained_model",
@@ -488,7 +489,7 @@ def incremental_train_classifier_with_epochs(
         raise ValueError(f"Unsupported classifier type: {classifier_type}")
 
     # Define all possible classes in the dataset
-    all_classes = np.arange(len(train_generator.class_indices))
+    all_classes = np.arange(num_classes)
 
     # Trigger callbacks at the start of training
     for callback in callbacks:
