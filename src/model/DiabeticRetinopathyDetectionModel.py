@@ -348,13 +348,17 @@ def train_and_evaluate_with_generators(
 
 
 import os
-import logging
 import numpy as np
-import pickle
 from sklearn.svm import SVC
-from sklearn.metrics import accuracy_score, classification_report
-from sklearn.preprocessing import StandardScaler
-from datetime import datetime
+from sklearn.utils.class_weight import compute_class_weight
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    log_loss,
+    ConfusionMatrixDisplay,
+)
+import matplotlib.pyplot as plt
+import pickle
 
 
 def extract_features_for_svm(
@@ -378,56 +382,32 @@ def extract_features_for_svm(
     all_labels = []
 
     print("[INFO] Starting feature extraction for all images...")
-    batch_count = 0
-
     for batch_images, batch_labels in image_generator:
-        batch_count += 1
-        print(f"[INFO] Processing batch {batch_count}...")
-
-        # Track image and label shapes
-        print(f"[INFO] Batch image shape: {batch_images.shape}")
-        print(f"[INFO] Batch label shape: {batch_labels.shape}")
-
         # Extract features
-        print(f"[INFO] Extracting features using GoogleNet...")
         googlenet_features = googlenet_model.predict(batch_images, verbose=0)
-        print(f"[INFO] GoogleNet features shape: {googlenet_features.shape}")
-
-        print(f"[INFO] Extracting features using ResNet...")
         resnet_features = resnet_model.predict(batch_images, verbose=0)
-        print(f"[INFO] ResNet features shape: {resnet_features.shape}")
-
-        # Combine features
         batch_features = np.concatenate([googlenet_features, resnet_features], axis=1)
-        print(f"[INFO] Combined features shape: {batch_features.shape}")
 
         # Convert one-hot encoded labels to class indices
         batch_labels = np.argmax(batch_labels, axis=1)
-        print(f"[INFO] Converted labels for batch {batch_count}.")
 
         # Accumulate features and labels
         all_features.append(batch_features)
         all_labels.append(batch_labels)
-        print(f"[INFO] Batch {batch_count} processed successfully.")
 
     # Combine all features and labels
-    print("[INFO] Combining all batches into a single dataset...")
     all_features = np.vstack(all_features)
     all_labels = np.concatenate(all_labels)
-    print(f"[INFO] Combined dataset shape: {all_features.shape}, {all_labels.shape}")
 
     # Scale features
     if scaler is None:
-        print("[INFO] Scaling features with a new StandardScaler...")
+        from sklearn.preprocessing import StandardScaler
+
         scaler = StandardScaler()
         all_features = scaler.fit_transform(all_features)
-        print("[INFO] Feature scaling completed.")
     else:
-        print("[INFO] Scaling features using the provided StandardScaler...")
         all_features = scaler.transform(all_features)
-        print("[INFO] Feature scaling completed.")
 
-    print("[INFO] Feature extraction and scaling completed for all images.")
     return all_features, all_labels, scaler
 
 
@@ -439,23 +419,45 @@ def train_svm_on_full_dataset(
     log_dir="logs",
     model_name="trained_svm_model",
 ):
-    print("[INFO] Starting Training with Full Dataset for SVM...")
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-    )
+    """
+    Trains an SVM classifier on features extracted from GoogleNet and ResNet models.
 
+    Parameters:
+        train_generator: Generator yielding training data.
+        validation_generator: Generator yielding validation data.
+        googlenet_model: Pretrained GoogleNet model for feature extraction.
+        resnet_model: Pretrained ResNet model for feature extraction.
+        log_dir: Directory to save logs and the model.
+        model_name: Name for the saved model.
+
+    Returns:
+        model: Trained SVM model.
+        val_labels: True labels for the validation set.
+        y_val_pred: Predicted labels for the validation set.
+        y_val_prob: Predicted probabilities for the validation set.
+    """
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    print("[INFO] Initializing SVM classifier...")
-    model = SVC(kernel="rbf", probability=True)
+    print("[INFO] Starting Training with Full Dataset for SVM...")
 
     # Extract features for training data
     print("[INFO] Extracting features for training set...")
     train_features, train_labels, scaler = extract_features_for_svm(
         train_generator, googlenet_model, resnet_model
     )
+
+    # Compute class weights
+    print("[INFO] Computing class weights...")
+    class_weights = compute_class_weight(
+        class_weight="balanced", classes=np.unique(train_labels), y=train_labels
+    )
+    class_weight_dict = dict(enumerate(class_weights))
+    print(f"[INFO] Computed Class Weights: {class_weight_dict}")
+
+    # Initialize SVM with class weights
+    print("[INFO] Initializing SVM classifier...")
+    model = SVC(kernel="rbf", probability=True, class_weight=class_weight_dict)
 
     # Train the SVM classifier
     print("[INFO] Training the SVM classifier on the full training dataset...")
@@ -470,8 +472,9 @@ def train_svm_on_full_dataset(
     # Evaluate the trained SVM model
     print("[INFO] Evaluating the SVM classifier on validation data...")
     y_val_pred = model.predict(val_features)
-    y_val_prob = model.predict_proba(val_features)  # Class probabilities
+    y_val_prob = model.predict_proba(val_features)
 
+    # Validation accuracy
     val_accuracy = accuracy_score(val_labels, y_val_pred)
     print(f"[INFO] Validation Accuracy: {val_accuracy:.4f}")
 
@@ -479,13 +482,25 @@ def train_svm_on_full_dataset(
     print("\n[INFO] Classification Report:")
     print(classification_report(val_labels, y_val_pred))
 
+    # Log-loss
+    val_log_loss = log_loss(val_labels, y_val_prob)
+    print(f"[INFO] Validation Log-Loss: {val_log_loss}")
+
+    # Save log-loss to a file
+    with open(os.path.join(log_dir, "log_loss.txt"), "w") as f:
+        f.write(f"Validation Log-Loss: {val_log_loss}\n")
+
+    # Confusion Matrix
+    ConfusionMatrixDisplay.from_predictions(val_labels, y_val_pred)
+    plt.savefig(os.path.join(log_dir, "confusion_matrix.png"))
+    # plt.show()
+
     # Save the trained model
-    model_file = os.path.join(log_dir, f"{model_name}_final_model_{timestamp}.pkl")
-    print(f"[INFO] Saving the trained model to {model_file}...")
+    model_file = os.path.join(log_dir, f"{model_name}_final_model.pkl")
     with open(model_file, "wb") as f:
         pickle.dump(model, f)
 
-    print("[INFO] Training process completed.")
+    print(f"[INFO] Trained model saved successfully to {model_file}")
     return model, val_labels, y_val_pred, y_val_prob
 
 
