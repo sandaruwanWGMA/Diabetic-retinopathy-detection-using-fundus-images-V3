@@ -204,18 +204,13 @@ def preprocess(
     def flow_from_dataframe(
         core_idg, in_df, path_col, y_col, shuffle=True, color_mode="rgb"
     ):
-        def _func():
-            ds = tf.data.Dataset.from_tensor_slices(
-                (in_df[path_col].values, np.stack(in_df[y_col].values, axis=0))
-            )
-            if shuffle:
-                ds = ds.shuffle(buffer_size=len(in_df))
-            ds = ds.map(
-                lambda x, y: (core_idg(x), y), num_parallel_calls=tf.data.AUTOTUNE
-            )
-            return ds.batch(batch_size)
-
-        return _func
+        ds = tf.data.Dataset.from_tensor_slices(
+            (in_df[path_col].values, np.stack(in_df[y_col].values, axis=0))
+        )
+        if shuffle:
+            ds = ds.shuffle(buffer_size=len(in_df))
+        ds = ds.map(lambda x, y: (core_idg(x), y), num_parallel_calls=tf.data.AUTOTUNE)
+        return ds.batch(batch_size)
 
     # Create data loaders
     train_idg = tf_image_loader(out_size=img_size, vertical_flip=True, color_mode="rgb")
@@ -239,8 +234,7 @@ def preprocess(
 
 
 # Usage example:
-train_gen, valid_gen = preprocess()
-
+# train_gen, valid_gen = preprocess()
 
 # # Split dataframe into chunks
 # def split_dataframe(df, n_splits):
