@@ -532,7 +532,17 @@ def incremental_train_classifier_with_epochs(
 
     # Initialize the classifier
     if classifier_type == "SGD":
-        model = SGDClassifier(loss="log", penalty="l2", max_iter=1, warm_start=True)
+        class_weight = (
+            "balanced"  # Automatically adjust weights based on class distribution
+        )
+        model = SGDClassifier(
+            loss="log_loss",
+            penalty="l2",
+            max_iter=1,
+            warm_start=True,
+            class_weight=class_weight,
+        )
+
     elif classifier_type == "RF":
         model = RandomForestClassifier(n_estimators=100)
     elif classifier_type == "NB":

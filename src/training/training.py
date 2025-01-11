@@ -79,52 +79,17 @@ googlenet_model, resnet_model = load_models()
 num_classes = 5
 
 # Train classifier incrementally with epochs
-# losses, y_val, y_pred, trained_model = incremental_train_classifier_with_epochs(
-#     train_generator=train_generator,
-#     validation_generator=validation_generator,
-#     googlenet_model=googlenet_model,
-#     resnet_model=resnet_model,
-#     num_classes=num_classes,
-#     classifier_type="SGD",
-#     log_dir="logs",
-#     model_name="diabetic_retinopathy_model",
-#     num_epochs=10,
-#     callbacks=[custom_early_stopping],
-# )
-
-# # Ensure the saved_models directory exists
-# saved_models_dir = "saved_models"
-# if not os.path.exists(saved_models_dir):
-#     os.makedirs(saved_models_dir)
-
-# # Define the path to save the trained model
-# model_save_path = os.path.join(saved_models_dir, "trained_model.pkl")
-
-# # Save the model
-# with open(model_save_path, "wb") as f:
-#     pickle.dump(trained_model, f)
-
-# print(f"Trained model saved successfully to {model_save_path}")
-
-
-# # Save classification report and plot confusion matrix
-# save_classification_report(y_val, y_pred)
-# plot_confusion_matrix(y_val, y_pred, classes=[0, 1, 2, 3, 4])
-
-# # Existing plotting and saving functionality
-# plot_loss(losses, title="Loss Function Over Time", save_path="loss_plot.png")
-# save_losses_to_file(losses, "loss_values.txt")
-
-
-####### FOR TRAINING THE SVM #######
-# Train the SVM model on the full dataset
-model, val_labels, y_val_pred, y_val_prob = train_svm_on_full_dataset(
-    train_generator=train_generator,  # Training generator
-    validation_generator=validation_generator,  # Validation generator
-    googlenet_model=googlenet_model,  # Pretrained GoogleNet model
-    resnet_model=resnet_model,  # Pretrained ResNet model
-    log_dir="logs",  # Directory to save logs/models
-    model_name="diabetic_retinopathy_model",  # Model name
+losses, y_val, y_pred, trained_model = incremental_train_classifier_with_epochs(
+    train_generator=train_generator,
+    validation_generator=validation_generator,
+    googlenet_model=googlenet_model,
+    resnet_model=resnet_model,
+    num_classes=num_classes,
+    classifier_type="SGD",
+    log_dir="logs",
+    model_name="diabetic_retinopathy_model",
+    num_epochs=25,
+    callbacks=[custom_early_stopping],
 )
 
 # Ensure the saved_models directory exists
@@ -132,24 +97,59 @@ saved_models_dir = "saved_models"
 if not os.path.exists(saved_models_dir):
     os.makedirs(saved_models_dir)
 
-# Save the trained model
+# Define the path to save the trained model
 model_save_path = os.path.join(saved_models_dir, "trained_model.pkl")
+
+# Save the model
 with open(model_save_path, "wb") as f:
-    pickle.dump(model, f)
-print(f"[INFO] Trained model saved successfully to {model_save_path}")
+    pickle.dump(trained_model, f)
 
-# Save classification report using your function
-classification_report_save_path = os.path.join(
-    saved_models_dir, "classification_report.csv"
-)
-save_classification_report(
-    val_labels, y_val_pred, filename=classification_report_save_path
-)
+print(f"Trained model saved successfully to {model_save_path}")
 
-# Plot and save confusion matrix using your function
-confusion_matrix_save_path = os.path.join(saved_models_dir, "confusion_matrix.png")
-plot_confusion_matrix(
-    val_labels, y_val_pred, classes=[0, 1, 2, 3, 4], filename=confusion_matrix_save_path
-)
+
+# Save classification report and plot confusion matrix
+save_classification_report(y_val, y_pred)
+plot_confusion_matrix(y_val, y_pred, classes=[0, 1, 2, 3, 4])
+
+# Existing plotting and saving functionality
+plot_loss(losses, title="Loss Function Over Time", save_path="loss_plot.png")
+save_losses_to_file(losses, "loss_values.txt")
+
+
+####### FOR TRAINING THE SVM #######
+# Train the SVM model on the full dataset
+# model, val_labels, y_val_pred, y_val_prob = train_svm_on_full_dataset(
+#     train_generator=train_generator,  # Training generator
+#     validation_generator=validation_generator,  # Validation generator
+#     googlenet_model=googlenet_model,  # Pretrained GoogleNet model
+#     resnet_model=resnet_model,  # Pretrained ResNet model
+#     log_dir="logs",  # Directory to save logs/models
+#     model_name="diabetic_retinopathy_model",  # Model name
+# )
+
+# # Ensure the saved_models directory exists
+# saved_models_dir = "saved_models"
+# if not os.path.exists(saved_models_dir):
+#     os.makedirs(saved_models_dir)
+
+# # Save the trained model
+# model_save_path = os.path.join(saved_models_dir, "trained_model.pkl")
+# with open(model_save_path, "wb") as f:
+#     pickle.dump(model, f)
+# print(f"[INFO] Trained model saved successfully to {model_save_path}")
+
+# # Save classification report using your function
+# classification_report_save_path = os.path.join(
+#     saved_models_dir, "classification_report.csv"
+# )
+# save_classification_report(
+#     val_labels, y_val_pred, filename=classification_report_save_path
+# )
+
+# # Plot and save confusion matrix using your function
+# confusion_matrix_save_path = os.path.join(saved_models_dir, "confusion_matrix.png")
+# plot_confusion_matrix(
+#     val_labels, y_val_pred, classes=[0, 1, 2, 3, 4], filename=confusion_matrix_save_path
+# )
 
 print("Training complete. Logs, model, reports, and visualizations have been saved.")
