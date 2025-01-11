@@ -15,6 +15,7 @@ import pickle
 import json
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report, accuracy_score
+from sklearn.linear_model import SGDClassifier
 
 import logging
 
@@ -451,7 +452,7 @@ def incremental_train_classifier_with_epochs(
     validation_generator,
     googlenet_model,
     resnet_model,
-    classifier_type="SVM",
+    classifier_type="SGD",
     log_dir="logs",
     model_name="trained_model",
     num_epochs=10,
@@ -473,8 +474,8 @@ def incremental_train_classifier_with_epochs(
     scaler = StandardScaler()
 
     # Initialize the classifier
-    if classifier_type == "SVM":
-        model = SVC(kernel="rbf", probability=True)
+    if classifier_type == "SGD":
+        model = SGDClassifier(loss="log", penalty="l2", max_iter=1, warm_start=True)
     elif classifier_type == "RF":
         model = RandomForestClassifier(n_estimators=100)
     elif classifier_type == "NB":
@@ -519,7 +520,9 @@ def incremental_train_classifier_with_epochs(
 
                 # Train classifier incrementally
                 if epoch == 1 and batch_count == 1:
-                    model.fit(batch_features, batch_labels)
+                    model.partial_fit(
+                        batch_features, batch_labels, classes=np.unique(batch_labels)
+                    )
                 else:
                     model.partial_fit(batch_features, batch_labels)
 
