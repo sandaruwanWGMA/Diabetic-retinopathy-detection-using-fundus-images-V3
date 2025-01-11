@@ -498,7 +498,7 @@ def incremental_train_classifier_with_epochs(
 
     try:
         for epoch in range(1, num_epochs + 1):
-            print(f"\nEpoch {epoch}/{num_epochs}")
+            print(f"\n[INFO] Epoch {epoch}/{num_epochs} started.")
             batch_count = 0
 
             # Training accuracy trackers
@@ -510,49 +510,28 @@ def incremental_train_classifier_with_epochs(
                 if hasattr(callback, "on_epoch_start"):
                     callback.on_epoch_start(epoch)
 
-            # Debugging: Start of epoch
-            print(f"[DEBUG] Start of epoch {epoch}. Beginning batch processing...")
-
             # Iterate through the training generator batches
             for batch_images, batch_labels in train_generator:
                 batch_count += 1
-                print(f"[DEBUG] Processing batch {batch_count}...")
-
-                # Debugging: Shape of input images and labels
-                print(f"[DEBUG] Batch Images Shape: {batch_images.shape}")
-                print(f"[DEBUG] Batch Labels Shape: {batch_labels.shape}")
+                print(f"[INFO] Training: Processing batch {batch_count}...")
 
                 # Convert one-hot encoded labels to class indices
                 batch_labels = np.argmax(batch_labels, axis=1)
 
-                # Debugging: Converted labels
-                print(f"[DEBUG] Converted Batch Labels: {batch_labels}")
-
                 # Extract features for the current batch
-                googlenet_features = googlenet_model.predict(batch_images, verbose=1)
-                resnet_features = resnet_model.predict(batch_images, verbose=1)
-
-                # Debugging: Extracted features
-                print(f"[DEBUG] GoogleNet Features Shape: {googlenet_features.shape}")
-                print(f"[DEBUG] ResNet Features Shape: {resnet_features.shape}")
+                googlenet_features = googlenet_model.predict(batch_images, verbose=0)
+                resnet_features = resnet_model.predict(batch_images, verbose=0)
 
                 # Combine features from both models
                 batch_features = np.concatenate(
                     [googlenet_features, resnet_features], axis=1
                 )
-                print(f"[DEBUG] Combined Features Shape: {batch_features.shape}")
 
                 # Scale features
                 batch_features = scaler.fit_transform(batch_features)
 
-                # Debugging: After scaling
-                print(f"[DEBUG] Scaled Features Shape: {batch_features.shape}")
-
                 # Train classifier incrementally
                 model.partial_fit(batch_features, batch_labels, classes=all_classes)
-
-                # Debugging: After partial fit
-                print(f"[DEBUG] Completed training on batch {batch_count}.")
 
                 # Track training accuracy for the batch
                 y_train_true.extend(batch_labels)
@@ -562,33 +541,24 @@ def incremental_train_classifier_with_epochs(
             train_accuracy = accuracy_score(y_train_true, y_train_pred)
             losses["Training Loss"].append(1 - train_accuracy)
 
-            print(f"[DEBUG] Epoch {epoch} Training Accuracy: {train_accuracy:.4f}")
+            print(f"[INFO] Epoch {epoch} Training Accuracy: {train_accuracy:.4f}")
 
             # Validation accuracy trackers
             y_val_true = []
             y_val_pred = []
 
             # Evaluate on validation generator
+            batch_count = 0
             for batch_images, batch_labels in validation_generator:
-                print("[DEBUG] Processing validation batch...")
+                batch_count += 1
+                print(f"[INFO] Validation: Processing batch {batch_count}...")
 
                 # Convert one-hot encoded labels to class indices
                 batch_labels = np.argmax(batch_labels, axis=1)
 
-                # Debugging: Converted validation labels
-                print(f"[DEBUG] Converted Validation Labels: {batch_labels}")
-
                 # Extract features for validation batch
-                googlenet_features = googlenet_model.predict(batch_images, verbose=1)
-                resnet_features = resnet_model.predict(batch_images, verbose=1)
-
-                # Debugging: Extracted validation features
-                print(
-                    f"[DEBUG] Validation GoogleNet Features Shape: {googlenet_features.shape}"
-                )
-                print(
-                    f"[DEBUG] Validation ResNet Features Shape: {resnet_features.shape}"
-                )
+                googlenet_features = googlenet_model.predict(batch_images, verbose=0)
+                resnet_features = resnet_model.predict(batch_images, verbose=0)
 
                 batch_features = np.concatenate(
                     [googlenet_features, resnet_features], axis=1
@@ -606,9 +576,8 @@ def incremental_train_classifier_with_epochs(
             val_accuracy = accuracy_score(y_val_true, y_val_pred)
             losses["Validation Loss"].append(1 - val_accuracy)
 
-            # Debugging: Epoch results
             print(
-                f"Epoch {epoch}/{num_epochs}: Training Accuracy = {train_accuracy:.4f}, Validation Accuracy = {val_accuracy:.4f}"
+                f"[INFO] Epoch {epoch}/{num_epochs}: Training Accuracy = {train_accuracy:.4f}, Validation Accuracy = {val_accuracy:.4f}"
             )
 
             # Save the model after every epoch
@@ -637,7 +606,7 @@ def incremental_train_classifier_with_epochs(
                 if hasattr(callback, "on_epoch_end"):
                     callback.on_epoch_end(epoch, logs)
 
-        print("Training on all epochs completed.")
+        print("[INFO] Training on all epochs completed.")
 
         # Trigger callbacks at the end of training
         for callback in callbacks:
@@ -645,11 +614,11 @@ def incremental_train_classifier_with_epochs(
                 callback.on_train_end()
 
         # Final classification report
-        print("\nFinal Classification Report (Validation):")
+        print("\n[INFO] Final Classification Report (Validation):")
         print(classification_report(y_val_true, y_val_pred))
 
     except StopIteration:
-        print("Training stopped early.")
+        print("[INFO] Training stopped early.")
 
     return losses, y_val_true, y_val_pred, model
 

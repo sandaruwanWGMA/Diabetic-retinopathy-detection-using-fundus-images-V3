@@ -88,7 +88,7 @@ losses, y_val, y_pred, trained_model = incremental_train_classifier_with_epochs(
     classifier_type="SGD",
     log_dir="logs",
     model_name="diabetic_retinopathy_model",
-    num_epochs=100,
+    num_epochs=10,
     callbacks=[custom_early_stopping],
 )
 
