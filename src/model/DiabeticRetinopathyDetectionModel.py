@@ -503,6 +503,20 @@ from sklearn.linear_model import SGDClassifier
 import numpy as np
 
 
+import os
+import json
+import pickle
+import logging
+import numpy as np
+from datetime import datetime
+from sklearn.metrics import accuracy_score, classification_report
+from sklearn.linear_model import SGDClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.preprocessing import StandardScaler
+from sklearn.utils.class_weight import compute_class_weight
+
+
 def incremental_train_classifier_with_epochs(
     train_generator,
     validation_generator,
@@ -518,7 +532,7 @@ def incremental_train_classifier_with_epochs(
     if callbacks is None:
         callbacks = []
 
-    print("Started Incremental Training with Feature Extraction and Epochs...")
+    print("[INFO] Started Incremental Training with Feature Extraction and Epochs...")
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
     )
@@ -530,19 +544,26 @@ def incremental_train_classifier_with_epochs(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     scaler = StandardScaler()
 
+    # Precompute class weights
+    print("[INFO] Computing class weights...")
+    dummy_labels = np.concatenate(
+        [np.argmax(labels, axis=1) for _, labels in train_generator]
+    )
+    class_weights = compute_class_weight(
+        class_weight="balanced", classes=np.arange(num_classes), y=dummy_labels
+    )
+    class_weights_dict = dict(enumerate(class_weights))
+    print(f"[INFO] Computed Class Weights: {class_weights_dict}")
+
     # Initialize the classifier
+    print(f"[INFO] Initializing classifier: {classifier_type}")
     if classifier_type == "SGD":
-        class_weight = (
-            "balanced"  # Automatically adjust weights based on class distribution
-        )
         model = SGDClassifier(
-            loss="log_loss",
+            loss="log_loss",  # Logistic regression for probabilities
             penalty="l2",
             max_iter=1,
             warm_start=True,
-            class_weight=class_weight,
         )
-
     elif classifier_type == "RF":
         model = RandomForestClassifier(n_estimators=100)
     elif classifier_type == "NB":
@@ -593,7 +614,12 @@ def incremental_train_classifier_with_epochs(
                 batch_features = scaler.fit_transform(batch_features)
 
                 # Train classifier incrementally
-                model.partial_fit(batch_features, batch_labels, classes=all_classes)
+                model.partial_fit(
+                    batch_features,
+                    batch_labels,
+                    classes=all_classes,
+                    class_weight=class_weights_dict,
+                )
 
                 # Track training accuracy for the batch
                 y_train_true.extend(batch_labels)
