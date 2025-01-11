@@ -183,6 +183,7 @@ def train_and_evaluate(
 #     labels = np.concatenate(labels)
 #     return combined_features, labels
 
+
 def extract_features_from_generator(generator, googlenet_model, resnet_model):
     combined_features = []
     labels = []
@@ -191,22 +192,32 @@ def extract_features_from_generator(generator, googlenet_model, resnet_model):
 
     for i, (batch_images, batch_labels) in enumerate(generator):
         print(f"Processing batch {i + 1}...")  # Debugging: Current batch index
-        print(f"Batch Images Shape: {batch_images.shape}")  # Debugging: Shape of the image batch
-        print(f"Batch Labels Shape: {batch_labels.shape}")  # Debugging: Shape of the label batch
+        print(
+            f"Batch Images Shape: {batch_images.shape}"
+        )  # Debugging: Shape of the image batch
+        print(
+            f"Batch Labels Shape: {batch_labels.shape}"
+        )  # Debugging: Shape of the label batch
 
         # Extract features from GoogleNet
         print("Extracting features from GoogleNet...")
         googlenet_features = googlenet_model.predict(batch_images, verbose=1)
-        print(f"GoogleNet Features Shape: {googlenet_features.shape}")  # Debugging: Shape of extracted features
+        print(
+            f"GoogleNet Features Shape: {googlenet_features.shape}"
+        )  # Debugging: Shape of extracted features
 
         # Extract features from ResNet
         print("Extracting features from ResNet...")
         resnet_features = resnet_model.predict(batch_images, verbose=1)
-        print(f"ResNet Features Shape: {resnet_features.shape}")  # Debugging: Shape of extracted features
+        print(
+            f"ResNet Features Shape: {resnet_features.shape}"
+        )  # Debugging: Shape of extracted features
 
         # Combine the features
         batch_features = np.concatenate([googlenet_features, resnet_features], axis=1)
-        print(f"Combined Features Shape: {batch_features.shape}")  # Debugging: Shape after combining features
+        print(
+            f"Combined Features Shape: {batch_features.shape}"
+        )  # Debugging: Shape after combining features
 
         # Append features and labels
         combined_features.append(batch_features)
@@ -217,7 +228,9 @@ def extract_features_from_generator(generator, googlenet_model, resnet_model):
     labels = np.concatenate(labels)
 
     print("Feature extraction completed.")
-    print(f"Final Combined Features Shape: {combined_features.shape}")  # Debugging: Final feature shape
+    print(
+        f"Final Combined Features Shape: {combined_features.shape}"
+    )  # Debugging: Final feature shape
     print(f"Final Labels Shape: {labels.shape}")  # Debugging: Final labels shape
 
     return combined_features, labels
@@ -329,6 +342,108 @@ def train_and_evaluate_with_generators(
     y_pred = model.predict(X_val)
     print(classification_report(y_val, y_pred))
     return losses, y_val, y_pred, model
+
+
+def train_classifier_with_extracted_features(
+    train_generator,
+    validation_generator,
+    googlenet_model,
+    resnet_model,
+    classifier_type="SVM",
+    log_dir="logs",
+    model_name="trained_model",
+    callbacks=None,
+):
+    if callbacks is None:
+        callbacks = []
+
+    print("Starting Training with Feature Extraction...")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
+    losses = {"Training Loss": [], "Validation Loss": []}
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    scaler = StandardScaler()
+
+    # Initialize the classifier
+    if classifier_type == "SVM":
+        model = SVC(kernel="rbf", probability=True)
+    elif classifier_type == "RF":
+        model = RandomForestClassifier(n_estimators=100)
+    elif classifier_type == "NB":
+        model = GaussianNB()
+    else:
+        raise ValueError(f"Unsupported classifier type: {classifier_type}")
+
+    # Trigger callbacks at the start of training
+    for callback in callbacks:
+        callback.on_train_start()
+
+    try:
+        print("Extracting features from training data...")
+        X_train, y_train = extract_features_from_generator(
+            train_generator, googlenet_model, resnet_model
+        )
+
+        print("Extracting features from validation data...")
+        X_val, y_val = extract_features_from_generator(
+            validation_generator, googlenet_model, resnet_model
+        )
+
+        print("Normalizing features...")
+        X_train = scaler.fit_transform(X_train)
+        X_val = scaler.transform(X_val)
+
+        print("Training the classifier...")
+        model.fit(X_train, y_train)
+
+        print("Evaluating on training data...")
+        y_pred_train = model.predict(X_train)
+        train_accuracy = accuracy_score(y_train, y_pred_train)
+
+        print("Evaluating on validation data...")
+        y_pred_val = model.predict(X_val)
+        val_accuracy = accuracy_score(y_val, y_pred_val)
+
+        losses["Training Loss"].append(1 - train_accuracy)
+        losses["Validation Loss"].append(1 - val_accuracy)
+
+        print(
+            f"Training Accuracy = {train_accuracy:.2f}, Validation Accuracy = {val_accuracy:.2f}"
+        )
+
+        # Trigger callbacks after training
+        for callback in callbacks:
+            callback.on_train_end()
+
+        # Save the trained model
+        model_file = os.path.join(log_dir, f"{model_name}_final_model_{timestamp}.pkl")
+        with open(model_file, "wb") as f:
+            pickle.dump(model, f)
+
+        # Save the logs
+        log_file = os.path.join(log_dir, f"{model_name}_logs_{timestamp}.json")
+        with open(log_file, "w") as f:
+            json.dump(
+                {
+                    "Train Accuracy": train_accuracy,
+                    "Validation Accuracy": val_accuracy,
+                },
+                f,
+            )
+
+        # Classification report
+        print("\nClassification Report (Validation):")
+        print(classification_report(y_val, y_pred_val))
+
+    except StopIteration:
+        print("Training stopped early due to StopIteration.")
+
+    return losses, y_val, y_pred_val, model
 
 
 # Main Script
