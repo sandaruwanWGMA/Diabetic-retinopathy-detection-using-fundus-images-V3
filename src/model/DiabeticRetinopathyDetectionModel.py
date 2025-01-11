@@ -643,7 +643,7 @@ def incremental_train_classifier_with_epochs(
                 )
 
                 # Track training accuracy for the batch
-                y_train_true.extend(batch_labels)
+                y_train_true.extend(np.argmax(batch_labels_one_hot, axis=1))
                 y_train_pred.extend(
                     np.argmax(model.predict(batch_features, verbose=0), axis=1)
                 )
@@ -676,7 +676,7 @@ def incremental_train_classifier_with_epochs(
                     model.predict(batch_features, verbose=0), axis=1
                 )
                 y_val_pred.extend(y_pred_batch)
-                y_val_true.extend(batch_labels)
+                y_val_true.extend(np.argmax(batch_labels, axis=1))
 
             # Calculate validation accuracy for the epoch
             val_accuracy = accuracy_score(y_val_true, y_val_pred)
@@ -723,11 +723,6 @@ def incremental_train_classifier_with_epochs(
                 print(f"[INFO] Saved SGD model to {model_file}")
 
         print("[INFO] Training on all epochs completed.")
-
-        # Trigger callbacks at the end of training
-        for callback in callbacks:
-            if hasattr(callback, "on_train_end"):
-                callback.on_train_end()
 
         print("\n[INFO] Final Classification Report (Validation):")
         print(classification_report(y_val_true, y_val_pred))
