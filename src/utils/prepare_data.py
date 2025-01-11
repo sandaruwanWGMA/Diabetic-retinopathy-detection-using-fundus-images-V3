@@ -225,9 +225,11 @@ def preprocess(
         color_mode="rgb",
     )
 
-    train_gen = flow_from_dataframe(train_idg, train_df, path_col="path", y_col="level")
+    train_gen = flow_from_dataframe(
+        train_idg, train_df, path_col="path", y_col="level_cat"
+    )
     valid_gen = flow_from_dataframe(
-        valid_idg, valid_df, path_col="path", y_col="level", shuffle=False
+        valid_idg, valid_df, path_col="path", y_col="level_cat", shuffle=False
     )
 
     return train_gen, valid_gen
