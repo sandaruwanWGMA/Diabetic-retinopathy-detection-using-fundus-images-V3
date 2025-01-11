@@ -382,32 +382,68 @@ def extract_features_for_svm(
     all_labels = []
 
     print("[INFO] Starting feature extraction for all images...")
+    batch_count = 0
+
     for batch_images, batch_labels in image_generator:
+        batch_count += 1
+        print(f"[INFO] Processing batch {batch_count}...")
+
+        # Track image and label shapes
+        print(f"[INFO] Batch {batch_count}: Image shape: {batch_images.shape}")
+        print(f"[INFO] Batch {batch_count}: Label shape: {batch_labels.shape}")
+
         # Extract features
+        print(f"[INFO] Extracting GoogleNet features for batch {batch_count}...")
         googlenet_features = googlenet_model.predict(batch_images, verbose=0)
+        print(
+            f"[INFO] Batch {batch_count}: GoogleNet features shape: {googlenet_features.shape}"
+        )
+
+        print(f"[INFO] Extracting ResNet features for batch {batch_count}...")
         resnet_features = resnet_model.predict(batch_images, verbose=0)
+        print(
+            f"[INFO] Batch {batch_count}: ResNet features shape: {resnet_features.shape}"
+        )
+
+        # Combine features
+        print(f"[INFO] Combining features for batch {batch_count}...")
         batch_features = np.concatenate([googlenet_features, resnet_features], axis=1)
+        print(
+            f"[INFO] Batch {batch_count}: Combined features shape: {batch_features.shape}"
+        )
 
         # Convert one-hot encoded labels to class indices
+        print(f"[INFO] Converting labels for batch {batch_count}...")
         batch_labels = np.argmax(batch_labels, axis=1)
 
         # Accumulate features and labels
+        print(f"[INFO] Accumulating features and labels for batch {batch_count}...")
         all_features.append(batch_features)
         all_labels.append(batch_labels)
+        print(f"[INFO] Batch {batch_count} processed successfully.")
 
     # Combine all features and labels
+    print("[INFO] Combining all batches into a single dataset...")
     all_features = np.vstack(all_features)
     all_labels = np.concatenate(all_labels)
+    print(
+        f"[INFO] Combined dataset shape: Features - {all_features.shape}, Labels - {all_labels.shape}"
+    )
 
     # Scale features
     if scaler is None:
+        print("[INFO] Initializing and fitting StandardScaler...")
         from sklearn.preprocessing import StandardScaler
 
         scaler = StandardScaler()
         all_features = scaler.fit_transform(all_features)
+        print("[INFO] Feature scaling completed with a new StandardScaler.")
     else:
+        print("[INFO] Using provided StandardScaler for feature scaling...")
         all_features = scaler.transform(all_features)
+        print("[INFO] Feature scaling completed with the provided StandardScaler.")
 
+    print("[INFO] Feature extraction and scaling completed for all images.")
     return all_features, all_labels, scaler
 
 
