@@ -14,9 +14,6 @@ sys.path.append(project_root)
 
 from src.model.DiabeticRetinopathyDetectionModel import (
     load_models,
-    train_and_evaluate_with_generators,
-    extract_features_from_generator,
-    train_classifier_with_extracted_features,
     incremental_train_classifier_with_epochs,
     incremental_train_classifier,
 )
