@@ -447,12 +447,16 @@ def train_classifier_with_extracted_features(
     return losses, y_val, y_pred_val, model
 
 
+from sklearn.linear_model import SGDClassifier
+import numpy as np
+
+
 def incremental_train_classifier_with_epochs(
     train_generator,
     validation_generator,
     googlenet_model,
     resnet_model,
-    classifier_type="SGD",
+    classifier_type="SGD",  # Default changed to SGD for incremental training
     log_dir="logs",
     model_name="trained_model",
     num_epochs=10,
@@ -506,6 +510,9 @@ def incremental_train_classifier_with_epochs(
             for batch_images, batch_labels in train_generator:
                 batch_count += 1
 
+                # Convert one-hot encoded labels to class indices
+                batch_labels = np.argmax(batch_labels, axis=1)
+
                 # Extract features for the current batch
                 googlenet_features = googlenet_model.predict(batch_images, verbose=0)
                 resnet_features = resnet_model.predict(batch_images, verbose=0)
@@ -540,6 +547,9 @@ def incremental_train_classifier_with_epochs(
 
             # Evaluate on validation generator
             for batch_images, batch_labels in validation_generator:
+                # Convert one-hot encoded labels to class indices
+                batch_labels = np.argmax(batch_labels, axis=1)
+
                 # Extract features for validation batch
                 googlenet_features = googlenet_model.predict(batch_images, verbose=0)
                 resnet_features = resnet_model.predict(batch_images, verbose=0)
