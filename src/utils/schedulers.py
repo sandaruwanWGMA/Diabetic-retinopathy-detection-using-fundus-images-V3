@@ -13,7 +13,7 @@ class CustomEarlyStopping(Callback):
         print("Training has started. Monitoring for early stopping conditions.")
 
     def on_epoch_start(self, epoch):
-        print(f"Epoch {epoch + 1} has started.")
+        print(f"Epoch {epoch} has started.")
 
     def on_epoch_end(self, epoch, logs=None):
         val_loss = logs.get("Validation Loss", float("inf"))
@@ -23,5 +23,5 @@ class CustomEarlyStopping(Callback):
         else:
             self.wait += 1
             if self.wait >= self.patience:
-                print(f"Early stopping triggered at epoch {epoch + 1}")
+                print(f"Early stopping triggered at epoch {epoch}")
                 raise StopIteration
