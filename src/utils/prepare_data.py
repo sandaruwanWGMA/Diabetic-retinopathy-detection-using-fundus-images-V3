@@ -132,7 +132,7 @@ import tensorflow as tf
 from keras.utils import to_categorical
 from sklearn.model_selection import train_test_split
 from keras.applications.inception_v3 import preprocess_input
-from keras.preprocessing.image import load_img, img_to_array
+
 
 def preprocess(
     kaggle_base_dir="/kaggle/input/diabetic-retinopathy-blindness-detection-c-data",
@@ -168,28 +168,72 @@ def preprocess(
     print("train", train_df.shape[0], "validation", valid_df.shape[0])
 
     # Data augmentation and preprocessing function
-    def preprocess_image(image_path):
-        img = load_img(image_path, target_size=img_size)  # Load and resize image
-        img = img_to_array(img)  # Convert to array
-        img = preprocess_input(img)  # Apply preprocessing (InceptionV3)
-        return img
+    def tf_image_loader(
+        out_size,
+        horizontal_flip=True,
+        vertical_flip=False,
+        random_brightness=True,
+        random_contrast=True,
+        random_saturation=True,
+        random_hue=True,
+        color_mode="rgb",
+        preproc_func=preprocess_input,
+    ):
+        def _func(X):
+            X = tf.image.decode_jpeg(
+                tf.io.read_file(X), channels=3 if color_mode == "rgb" else 0
+            )
+            X = tf.image.resize(X, out_size)  # Resize the image to (224, 224)
+            if horizontal_flip:
+                X = tf.image.random_flip_left_right(X)
+            if vertical_flip:
+                X = tf.image.random_flip_up_down(X)
+            if random_brightness:
+                X = tf.image.random_brightness(X, max_delta=0.1)
+            if random_saturation:
+                X = tf.image.random_saturation(X, lower=0.75, upper=1.5)
+            if random_hue:
+                X = tf.image.random_hue(X, max_delta=0.15)
+            if random_contrast:
+                X = tf.image.random_contrast(X, lower=0.75, upper=1.5)
+            return preproc_func(X)
 
-    # Generator function
-    def generator(df, path_col, y_col, batch_size):
-        while True:
-            df = df.sample(frac=1).reset_index(drop=True)  # Shuffle data
-            for start in range(0, len(df), batch_size):
-                end = min(start + batch_size, len(df))
-                batch_df = df[start:end]
-                images = np.array(
-                    [preprocess_image(x) for x in batch_df[path_col].values]
-                )
-                labels = np.stack(batch_df[y_col].values, axis=0)
-                yield images, labels
+        return _func
 
-    # Create generators
-    train_gen = generator(train_df, path_col="path", y_col="level", batch_size=batch_size)
-    valid_gen = generator(valid_df, path_col="path", y_col="level", batch_size=batch_size)
+    # Generator function for creating TensorFlow datasets
+    def flow_from_dataframe(
+        core_idg, in_df, path_col, y_col, shuffle=True, color_mode="rgb"
+    ):
+        def _func():
+            ds = tf.data.Dataset.from_tensor_slices(
+                (in_df[path_col].values, np.stack(in_df[y_col].values, axis=0))
+            )
+            if shuffle:
+                ds = ds.shuffle(buffer_size=len(in_df))
+            ds = ds.map(
+                lambda x, y: (core_idg(x), y), num_parallel_calls=tf.data.AUTOTUNE
+            )
+            return ds.batch(batch_size)
+
+        return _func
+
+    # Create data loaders
+    train_idg = tf_image_loader(out_size=img_size, vertical_flip=True, color_mode="rgb")
+    valid_idg = tf_image_loader(
+        out_size=img_size,
+        vertical_flip=False,
+        horizontal_flip=False,
+        random_brightness=False,
+        random_contrast=False,
+        random_saturation=False,
+        random_hue=False,
+        color_mode="rgb",
+    )
+
+    train_gen = flow_from_dataframe(train_idg, train_df, path_col="path", y_col="level")
+    valid_gen = flow_from_dataframe(
+        valid_idg, valid_df, path_col="path", y_col="level", shuffle=False
+    )
 
     return train_gen, valid_gen
 

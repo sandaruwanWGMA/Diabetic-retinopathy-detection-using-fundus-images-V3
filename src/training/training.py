@@ -15,7 +15,7 @@ sys.path.append(project_root)
 from src.model.DiabeticRetinopathyDetectionModel import (
     load_models,
     train_and_evaluate_with_generators,
-    extract_features_from_generator
+    extract_features_from_generator,
 )
 from src.utils.plotting import (
     plot_loss,
@@ -112,4 +112,8 @@ googlenet_model, resnet_model = load_models()
 # print("Training complete. Logs, model, reports, and visualizations have been saved.")
 
 
-extract_features_from_generator(generator=train_generator, googlenet_model=googlenet_model, resnet_model=resnet_model)
+extract_features_from_generator(
+    generator=train_generator,
+    googlenet_model=googlenet_model,
+    resnet_model=resnet_model,
+)
