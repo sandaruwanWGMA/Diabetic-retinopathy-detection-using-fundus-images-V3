@@ -195,3 +195,14 @@ save_losses_to_file(losses, "loss_values_nn.txt")
 
 
 print("Training complete. Logs, model, reports, and visualizations have been saved.")
+
+
+####################################
+
+# Computed Class Weights: {0: 0.2770799347471452, 1: 2.6257004830917876, 2: 1.288878349537586, 3: 7.720454545454546, 4: 9.55219683655536}
+
+# Sandruwan WGMA: Epoch 20 SGD with Class weights
+# Molindu Sandaruwan: Epoch 10 SVM
+# Molindu Achintha: Epoch 25 NN
+
+####################################
