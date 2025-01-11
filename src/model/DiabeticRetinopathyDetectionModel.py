@@ -358,36 +358,74 @@ from datetime import datetime
 def extract_features_for_svm(
     image_generator, googlenet_model, resnet_model, scaler=None
 ):
-    """Extracts features for the entire dataset and scales them."""
+    """
+    Extracts features for the entire dataset and scales them.
+
+    Parameters:
+        image_generator: Generator yielding batches of images and labels.
+        googlenet_model: Pretrained GoogleNet model for feature extraction.
+        resnet_model: Pretrained ResNet model for feature extraction.
+        scaler: StandardScaler instance for scaling features. If None, a new scaler is created.
+
+    Returns:
+        all_features: Numpy array of combined features for the entire dataset.
+        all_labels: Numpy array of class labels for the entire dataset.
+        scaler: Fitted StandardScaler instance.
+    """
     all_features = []
     all_labels = []
 
-    print("[INFO] Extracting features for all images...")
+    print("[INFO] Starting feature extraction for all images...")
+    batch_count = 0
+
     for batch_images, batch_labels in image_generator:
+        batch_count += 1
+        print(f"[INFO] Processing batch {batch_count}...")
+
+        # Track image and label shapes
+        print(f"[INFO] Batch image shape: {batch_images.shape}")
+        print(f"[INFO] Batch label shape: {batch_labels.shape}")
+
         # Extract features
+        print(f"[INFO] Extracting features using GoogleNet...")
         googlenet_features = googlenet_model.predict(batch_images, verbose=0)
+        print(f"[INFO] GoogleNet features shape: {googlenet_features.shape}")
+
+        print(f"[INFO] Extracting features using ResNet...")
         resnet_features = resnet_model.predict(batch_images, verbose=0)
+        print(f"[INFO] ResNet features shape: {resnet_features.shape}")
+
+        # Combine features
         batch_features = np.concatenate([googlenet_features, resnet_features], axis=1)
+        print(f"[INFO] Combined features shape: {batch_features.shape}")
 
         # Convert one-hot encoded labels to class indices
         batch_labels = np.argmax(batch_labels, axis=1)
+        print(f"[INFO] Converted labels for batch {batch_count}.")
 
         # Accumulate features and labels
         all_features.append(batch_features)
         all_labels.append(batch_labels)
+        print(f"[INFO] Batch {batch_count} processed successfully.")
 
     # Combine all features and labels
+    print("[INFO] Combining all batches into a single dataset...")
     all_features = np.vstack(all_features)
     all_labels = np.concatenate(all_labels)
     print(f"[INFO] Combined dataset shape: {all_features.shape}, {all_labels.shape}")
 
     # Scale features
     if scaler is None:
+        print("[INFO] Scaling features with a new StandardScaler...")
         scaler = StandardScaler()
         all_features = scaler.fit_transform(all_features)
+        print("[INFO] Feature scaling completed.")
     else:
+        print("[INFO] Scaling features using the provided StandardScaler...")
         all_features = scaler.transform(all_features)
+        print("[INFO] Feature scaling completed.")
 
+    print("[INFO] Feature extraction and scaling completed for all images.")
     return all_features, all_labels, scaler
 
 
