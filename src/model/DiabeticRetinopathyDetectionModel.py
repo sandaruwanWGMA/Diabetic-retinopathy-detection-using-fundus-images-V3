@@ -446,6 +446,164 @@ def train_classifier_with_extracted_features(
     return losses, y_val, y_pred_val, model
 
 
+def incremental_train_classifier_with_epochs(
+    train_generator,
+    validation_generator,
+    googlenet_model,
+    resnet_model,
+    classifier_type="SVM",
+    log_dir="logs",
+    model_name="trained_model",
+    num_epochs=10,
+    callbacks=None,
+):
+    if callbacks is None:
+        callbacks = []
+
+    print("Started Incremental Training with Feature Extraction and Epochs...")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
+    losses = {"Training Loss": [], "Validation Loss": []}
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    scaler = StandardScaler()
+
+    # Initialize the classifier
+    if classifier_type == "SVM":
+        model = SVC(kernel="rbf", probability=True)
+    elif classifier_type == "RF":
+        model = RandomForestClassifier(n_estimators=100)
+    elif classifier_type == "NB":
+        model = GaussianNB()
+    else:
+        raise ValueError(f"Unsupported classifier type: {classifier_type}")
+
+    # Trigger callbacks at the start of training
+    for callback in callbacks:
+        if hasattr(callback, "on_train_start"):
+            callback.on_train_start()
+
+    try:
+        for epoch in range(1, num_epochs + 1):
+            print(f"\nEpoch {epoch}/{num_epochs}")
+            batch_count = 0
+
+            # Training accuracy trackers
+            y_train_true = []
+            y_train_pred = []
+
+            # Trigger callbacks at the start of an epoch
+            for callback in callbacks:
+                if hasattr(callback, "on_epoch_start"):
+                    callback.on_epoch_start(epoch)
+
+            # Iterate through the training generator batches
+            for batch_images, batch_labels in train_generator:
+                batch_count += 1
+
+                # Extract features for the current batch
+                googlenet_features = googlenet_model.predict(batch_images, verbose=0)
+                resnet_features = resnet_model.predict(batch_images, verbose=0)
+
+                # Combine features from both models
+                batch_features = np.concatenate(
+                    [googlenet_features, resnet_features], axis=1
+                )
+
+                # Scale features
+                batch_features = scaler.fit_transform(batch_features)
+
+                # Train classifier incrementally
+                if epoch == 1 and batch_count == 1:
+                    model.fit(batch_features, batch_labels)
+                else:
+                    model.partial_fit(batch_features, batch_labels)
+
+                # Track training accuracy for the batch
+                y_train_true.extend(batch_labels)
+                y_train_pred.extend(model.predict(batch_features))
+
+            # Calculate training accuracy for the epoch
+            train_accuracy = accuracy_score(y_train_true, y_train_pred)
+            losses["Training Loss"].append(1 - train_accuracy)
+
+            # Validation accuracy trackers
+            y_val_true = []
+            y_val_pred = []
+
+            # Evaluate on validation generator
+            for batch_images, batch_labels in validation_generator:
+                # Extract features for validation batch
+                googlenet_features = googlenet_model.predict(batch_images, verbose=0)
+                resnet_features = resnet_model.predict(batch_images, verbose=0)
+                batch_features = np.concatenate(
+                    [googlenet_features, resnet_features], axis=1
+                )
+
+                # Scale features
+                batch_features = scaler.transform(batch_features)
+
+                # Predict on validation batch
+                y_pred_batch = model.predict(batch_features)
+                y_val_pred.extend(y_pred_batch)
+                y_val_true.extend(batch_labels)
+
+            # Calculate validation accuracy for the epoch
+            val_accuracy = accuracy_score(y_val_true, y_val_pred)
+            losses["Validation Loss"].append(1 - val_accuracy)
+
+            # Log accuracies for the epoch
+            print(
+                f"Epoch {epoch}/{num_epochs}: Training Accuracy = {train_accuracy:.4f}, Validation Accuracy = {val_accuracy:.4f}"
+            )
+
+            # Save the model after every epoch
+            model_file = os.path.join(
+                log_dir, f"{model_name}_epoch_{epoch}_{timestamp}.pkl"
+            )
+            with open(model_file, "wb") as f:
+                pickle.dump(model, f)
+
+            log_file = os.path.join(
+                log_dir, f"{model_name}_logs_epoch_{epoch}_{timestamp}.json"
+            )
+            with open(log_file, "w") as f:
+                json.dump(
+                    {
+                        "Epoch": epoch,
+                        "Train Accuracy": train_accuracy,
+                        "Validation Accuracy": val_accuracy,
+                    },
+                    f,
+                )
+
+            # Trigger callbacks at the end of the epoch
+            logs = {"train_accuracy": train_accuracy, "val_accuracy": val_accuracy}
+            for callback in callbacks:
+                if hasattr(callback, "on_epoch_end"):
+                    callback.on_epoch_end(epoch, logs)
+
+        print("Training on all epochs completed.")
+
+        # Trigger callbacks at the end of training
+        for callback in callbacks:
+            if hasattr(callback, "on_train_end"):
+                callback.on_train_end()
+
+        # Final classification report
+        print("\nFinal Classification Report (Validation):")
+        print(classification_report(y_val_true, y_val_pred))
+
+    except StopIteration:
+        print("Training stopped early.")
+
+    return losses, y_val_true, y_val_pred, model
+
+
 # Main Script
 if __name__ == "__main__":
     # Example Dataset (Replace with real data)

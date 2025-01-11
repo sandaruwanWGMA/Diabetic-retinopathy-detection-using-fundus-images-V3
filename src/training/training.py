@@ -17,6 +17,7 @@ from src.model.DiabeticRetinopathyDetectionModel import (
     train_and_evaluate_with_generators,
     extract_features_from_generator,
     train_classifier_with_extracted_features,
+    incremental_train_classifier_with_epochs,
 )
 from src.utils.plotting import (
     plot_loss,
@@ -75,9 +76,8 @@ custom_early_stopping = CustomEarlyStopping(patience=15, min_delta=0.01)
 # Load GoogleNet and ResNet models
 googlenet_model, resnet_model = load_models()
 
-# Train and evaluate using GPU
-# Train and evaluate the classifier
-losses, y_val, y_pred, trained_model = train_classifier_with_extracted_features(
+# Train classifier incrementally with epochs
+losses, y_val, y_pred, trained_model = incremental_train_classifier_with_epochs(
     train_generator=train_generator,
     validation_generator=validation_generator,
     googlenet_model=googlenet_model,
@@ -85,6 +85,8 @@ losses, y_val, y_pred, trained_model = train_classifier_with_extracted_features(
     classifier_type="SVM",
     log_dir="logs",
     model_name="diabetic_retinopathy_model",
+    num_epochs=10,
+    callbacks=[custom_early_stopping],
 )
 
 # Ensure the saved_models directory exists
