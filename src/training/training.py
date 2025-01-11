@@ -18,6 +18,7 @@ from src.model.DiabeticRetinopathyDetectionModel import (
     extract_features_from_generator,
     train_classifier_with_extracted_features,
     incremental_train_classifier_with_epochs,
+    incremental_train_classifier,
 )
 from src.utils.plotting import (
     plot_loss,
@@ -79,16 +80,27 @@ googlenet_model, resnet_model = load_models()
 num_classes = 5
 
 # Train classifier incrementally with epochs
-losses, y_val, y_pred, trained_model = incremental_train_classifier_with_epochs(
-    train_generator=train_generator,
-    validation_generator=validation_generator,
-    googlenet_model=googlenet_model,
-    resnet_model=resnet_model,
-    num_classes=num_classes,
-    classifier_type="SGD",
-    log_dir="logs",
+# losses, y_val, y_pred, trained_model = incremental_train_classifier_with_epochs(
+#     train_generator=train_generator,
+#     validation_generator=validation_generator,
+#     googlenet_model=googlenet_model,
+#     resnet_model=resnet_model,
+#     num_classes=num_classes,
+#     classifier_type="SGD",
+#     log_dir="logs",
+#     model_name="diabetic_retinopathy_model",
+#     num_epochs=10,
+#     callbacks=[custom_early_stopping],
+# )
+
+losses, y_val, y_pred, trained_model = incremental_train_classifier(
+    train_generator=train_generator,  # Training data generator
+    validation_generator=validation_generator,  # Validation data generator
+    googlenet_model=googlenet_model,  # Pretrained GoogleNet model
+    resnet_model=resnet_model,  # Pretrained ResNet model
+    classifier_type="SVM",  # Classifier type (e.g., 'SVM')
+    log_dir="logs",  # Directory to save logs/models
     model_name="diabetic_retinopathy_model",
-    num_epochs=10,
     callbacks=[custom_early_stopping],
 )
 

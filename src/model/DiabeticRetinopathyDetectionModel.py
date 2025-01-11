@@ -345,7 +345,7 @@ def train_and_evaluate_with_generators(
     return losses, y_val, y_pred, model
 
 
-def train_classifier_with_extracted_features(
+def incremental_train_classifier(
     train_generator,
     validation_generator,
     googlenet_model,
@@ -358,7 +358,7 @@ def train_classifier_with_extracted_features(
     if callbacks is None:
         callbacks = []
 
-    print("Starting Training with Feature Extraction...")
+    print("[INFO] Starting Incremental Training with Feature Extraction...")
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
     )
@@ -366,11 +366,11 @@ def train_classifier_with_extracted_features(
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
-    losses = {"Training Loss": [], "Validation Loss": []}
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     scaler = StandardScaler()
 
     # Initialize the classifier
+    print(f"[INFO] Initializing classifier: {classifier_type}")
     if classifier_type == "SVM":
         model = SVC(kernel="rbf", probability=True)
     elif classifier_type == "RF":
@@ -380,71 +380,94 @@ def train_classifier_with_extracted_features(
     else:
         raise ValueError(f"Unsupported classifier type: {classifier_type}")
 
-    # Trigger callbacks at the start of training
-    for callback in callbacks:
-        callback.on_train_start()
+    # Initialize metrics tracking
+    losses = {"Training Loss": [], "Validation Loss": []}
+    batch_count = 0
 
     try:
-        print("Extracting features from training data...")
-        X_train, y_train = extract_features_from_generator(
-            train_generator, googlenet_model, resnet_model
-        )
+        print("[INFO] Starting training on batches...")
+        # Iterate through the training generator batches
+        for batch_images, batch_labels in train_generator:
+            batch_count += 1
+            print(f"[INFO] Processing batch {batch_count}...")
 
-        print("Extracting features from validation data...")
-        X_val, y_val = extract_features_from_generator(
-            validation_generator, googlenet_model, resnet_model
-        )
+            # Extract features for the current batch
+            print("[INFO] Extracting features from GoogleNet and ResNet...")
+            googlenet_features = googlenet_model.predict(batch_images, verbose=0)
+            resnet_features = resnet_model.predict(batch_images, verbose=0)
 
-        print("Normalizing features...")
-        X_train = scaler.fit_transform(X_train)
-        X_val = scaler.transform(X_val)
+            # Combine features from both models
+            print("[INFO] Combining features...")
+            batch_features = np.concatenate(
+                [googlenet_features, resnet_features], axis=1
+            )
 
-        print("Training the classifier...")
-        model.fit(X_train, y_train)
+            # Scale features
+            print("[INFO] Scaling features...")
+            batch_features = scaler.fit_transform(batch_features)
 
-        print("Evaluating on training data...")
-        y_pred_train = model.predict(X_train)
-        train_accuracy = accuracy_score(y_train, y_pred_train)
+            # Train classifier incrementally
+            if batch_count == 1:
+                print("[INFO] Fitting the classifier on the first batch...")
+                model.fit(batch_features, batch_labels)
+            else:
+                print("[INFO] Incremental training for subsequent batches...")
+                raise NotImplementedError(
+                    "SVM does not support incremental updates. Use SGDClassifier or an alternative."
+                )
 
-        print("Evaluating on validation data...")
-        y_pred_val = model.predict(X_val)
-        val_accuracy = accuracy_score(y_val, y_pred_val)
+            # Track training loss
+            y_pred_batch = model.predict(batch_features)
+            train_loss = 1 - accuracy_score(batch_labels, y_pred_batch)
+            losses["Training Loss"].append(train_loss)
+            print(f"[INFO] Batch {batch_count} Training Loss: {train_loss:.4f}")
 
-        losses["Training Loss"].append(1 - train_accuracy)
-        losses["Validation Loss"].append(1 - val_accuracy)
+        print("[INFO] Training on all batches completed.")
 
-        print(
-            f"Training Accuracy = {train_accuracy:.2f}, Validation Accuracy = {val_accuracy:.2f}"
-        )
+        # Evaluate on validation generator
+        print("[INFO] Starting evaluation on validation data...")
+        y_val_true = []
+        y_val_pred = []
+        batch_count = 0
+        for batch_images, batch_labels in validation_generator:
+            batch_count += 1
+            print(f"[INFO] Validating batch {batch_count}...")
 
-        # Trigger callbacks after training
-        for callback in callbacks:
-            callback.on_train_end()
+            # Extract features for validation batch
+            googlenet_features = googlenet_model.predict(batch_images, verbose=0)
+            resnet_features = resnet_model.predict(batch_images, verbose=0)
+            batch_features = np.concatenate(
+                [googlenet_features, resnet_features], axis=1
+            )
+
+            # Scale features
+            batch_features = scaler.transform(batch_features)
+
+            # Predict on validation batch
+            y_pred_batch = model.predict(batch_features)
+            y_val_pred.extend(y_pred_batch)
+            y_val_true.extend(batch_labels)
+
+        # Track validation loss
+        val_loss = 1 - accuracy_score(y_val_true, y_val_pred)
+        losses["Validation Loss"].append(val_loss)
+        print(f"[INFO] Validation Loss: {val_loss:.4f}")
+
+        # Classification report
+        print("\n[INFO] Classification Report:")
+        print(classification_report(y_val_true, y_val_pred))
 
         # Save the trained model
         model_file = os.path.join(log_dir, f"{model_name}_final_model_{timestamp}.pkl")
+        print(f"[INFO] Saving the trained model to {model_file}...")
         with open(model_file, "wb") as f:
             pickle.dump(model, f)
 
-        # Save the logs
-        log_file = os.path.join(log_dir, f"{model_name}_logs_{timestamp}.json")
-        with open(log_file, "w") as f:
-            json.dump(
-                {
-                    "Train Accuracy": train_accuracy,
-                    "Validation Accuracy": val_accuracy,
-                },
-                f,
-            )
-
-        # Classification report
-        print("\nClassification Report (Validation):")
-        print(classification_report(y_val, y_pred_val))
-
     except StopIteration:
-        print("Training stopped early due to StopIteration.")
+        print("[INFO] Training stopped early due to StopIteration.")
 
-    return losses, y_val, y_pred_val, model
+    print("[INFO] Training process completed.")
+    return losses, y_val_true, y_val_pred, model
 
 
 from sklearn.linear_model import SGDClassifier
