@@ -17,6 +17,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report, accuracy_score
 from sklearn.linear_model import SGDClassifier
 
+from sklearn.utils.class_weight import compute_class_weight
+
 import logging
 
 import sys
