@@ -451,12 +451,16 @@ from sklearn.linear_model import SGDClassifier
 import numpy as np
 
 
+from sklearn.linear_model import SGDClassifier
+import numpy as np
+
+
 def incremental_train_classifier_with_epochs(
     train_generator,
     validation_generator,
     googlenet_model,
     resnet_model,
-    classifier_type="SGD",  # Default changed to SGD for incremental training
+    classifier_type="SGD",
     log_dir="logs",
     model_name="trained_model",
     num_epochs=10,
