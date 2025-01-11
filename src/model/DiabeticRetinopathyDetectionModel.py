@@ -345,6 +345,19 @@ def train_and_evaluate_with_generators(
     return losses, y_val, y_pred, model
 
 
+import os
+import logging
+import numpy as np
+import json
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.metrics import accuracy_score, classification_report
+from sklearn.preprocessing import StandardScaler
+from datetime import datetime
+import pickle
+
+
 def incremental_train_classifier(
     train_generator,
     validation_generator,
@@ -372,7 +385,7 @@ def incremental_train_classifier(
     # Initialize the classifier
     print(f"[INFO] Initializing classifier: {classifier_type}")
     if classifier_type == "SVM":
-        model = SVC(kernel="rbf", probability=True)
+        model = SVC(kernel="rbf", probability=True)  # Enabled probabilities
     elif classifier_type == "RF":
         model = RandomForestClassifier(n_estimators=100)
     elif classifier_type == "NB":
@@ -406,12 +419,15 @@ def incremental_train_classifier(
             print("[INFO] Scaling features...")
             batch_features = scaler.fit_transform(batch_features)
 
+            # Convert one-hot encoded labels to class indices
+            batch_labels = np.argmax(batch_labels, axis=1)
+
             # Train classifier incrementally
             if batch_count == 1:
                 print("[INFO] Fitting the classifier on the first batch...")
                 model.fit(batch_features, batch_labels)
             else:
-                print("[INFO] Incremental training for subsequent batches...")
+                print("[INFO] Incremental training is not supported for SVM.")
                 raise NotImplementedError(
                     "SVM does not support incremental updates. Use SGDClassifier or an alternative."
                 )
@@ -428,6 +444,7 @@ def incremental_train_classifier(
         print("[INFO] Starting evaluation on validation data...")
         y_val_true = []
         y_val_pred = []
+        y_val_prob = []  # For probabilities
         batch_count = 0
         for batch_images, batch_labels in validation_generator:
             batch_count += 1
@@ -443,9 +460,14 @@ def incremental_train_classifier(
             # Scale features
             batch_features = scaler.transform(batch_features)
 
+            # Convert one-hot encoded labels to class indices
+            batch_labels = np.argmax(batch_labels, axis=1)
+
             # Predict on validation batch
             y_pred_batch = model.predict(batch_features)
+            y_prob_batch = model.predict_proba(batch_features)  # Class probabilities
             y_val_pred.extend(y_pred_batch)
+            y_val_prob.extend(y_prob_batch.tolist())
             y_val_true.extend(batch_labels)
 
         # Track validation loss
