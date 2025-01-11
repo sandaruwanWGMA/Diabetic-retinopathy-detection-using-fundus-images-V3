@@ -451,10 +451,6 @@ from sklearn.linear_model import SGDClassifier
 import numpy as np
 
 
-from sklearn.linear_model import SGDClassifier
-import numpy as np
-
-
 def incremental_train_classifier_with_epochs(
     train_generator,
     validation_generator,
@@ -490,6 +486,9 @@ def incremental_train_classifier_with_epochs(
         model = GaussianNB()
     else:
         raise ValueError(f"Unsupported classifier type: {classifier_type}")
+
+    # Define all possible classes in the dataset
+    all_classes = np.arange(len(train_generator.class_indices))
 
     # Trigger callbacks at the start of training
     for callback in callbacks:
@@ -530,12 +529,7 @@ def incremental_train_classifier_with_epochs(
                 batch_features = scaler.fit_transform(batch_features)
 
                 # Train classifier incrementally
-                if epoch == 1 and batch_count == 1:
-                    model.partial_fit(
-                        batch_features, batch_labels, classes=np.unique(batch_labels)
-                    )
-                else:
-                    model.partial_fit(batch_features, batch_labels)
+                model.partial_fit(batch_features, batch_labels, classes=all_classes)
 
                 # Track training accuracy for the batch
                 y_train_true.extend(batch_labels)
