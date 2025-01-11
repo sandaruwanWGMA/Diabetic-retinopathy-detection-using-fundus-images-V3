@@ -564,10 +564,6 @@ def incremental_train_classifier_with_epochs(
             max_iter=1,
             warm_start=True,
         )
-    elif classifier_type == "RF":
-        model = RandomForestClassifier(n_estimators=100)
-    elif classifier_type == "NB":
-        model = GaussianNB()
     else:
         raise ValueError(f"Unsupported classifier type: {classifier_type}")
 
@@ -613,12 +609,17 @@ def incremental_train_classifier_with_epochs(
                 # Scale features
                 batch_features = scaler.fit_transform(batch_features)
 
+                # Apply class weights to the samples
+                sample_weights = np.array(
+                    [class_weights_dict[label] for label in batch_labels]
+                )
+
                 # Train classifier incrementally
                 model.partial_fit(
                     batch_features,
                     batch_labels,
                     classes=all_classes,
-                    class_weight=class_weights_dict,
+                    sample_weight=sample_weights,
                 )
 
                 # Track training accuracy for the batch
