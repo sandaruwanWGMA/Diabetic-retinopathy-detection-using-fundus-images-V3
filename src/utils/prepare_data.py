@@ -344,22 +344,24 @@ def preprocess_with_smote(
     smote = SMOTE(sampling_strategy="auto", random_state=42)
 
     # Creating a dynamic generator
-    def flow_from_smote(smote_gen, num_classes):
+    def flow_from_smote(smote_gen, num_classes, img_size):
         """
-        Dynamically create a generator from the SMOTE generator.
+        Dynamically create a generator from the SMOTE generator, ensuring reshaped output.
         """
         for smote_features, smote_labels in smote_gen:
+            # Reshape features back to (224, 224, 3)
+            smote_features_reshaped = smote_features.reshape((-1, img_size[0], img_size[1], 3))
             smote_labels_cat = to_categorical(smote_labels, num_classes)
-            yield smote_features, smote_labels_cat
+            yield smote_features_reshaped, smote_labels_cat
 
     smote_gen = smote_batch_generator(
         train_df["path"].values, train_df["level"].values, img_size, batch_size=smote_batch_size, smote=smote
     )
 
     train_gen = tf.data.Dataset.from_generator(
-        lambda: flow_from_smote(smote_gen, num_classes=1 + retina_df["level"].max()),
+        lambda: flow_from_smote(smote_gen, num_classes=1 + retina_df["level"].max(), img_size=img_size),
         output_signature=(
-            tf.TensorSpec(shape=(None, img_size[0] * img_size[1] * 3), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, img_size[0], img_size[1], 3), dtype=tf.float32),
             tf.TensorSpec(shape=(None, 1 + retina_df["level"].max()), dtype=tf.float32),
         ),
     )
