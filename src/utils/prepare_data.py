@@ -260,13 +260,35 @@ from tensorflow.keras.utils import to_categorical
 import time
 
 
-def preprocess_with_smote(
+from imblearn.over_sampling import SMOTE
+from sklearn.preprocessing import StandardScaler
+import tensorflow as tf
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.utils import to_categorical
+import os
+import time
+
+
+from imblearn.over_sampling import SMOTE
+from sklearn.preprocessing import StandardScaler
+import tensorflow as tf
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.utils import to_categorical
+import os
+import time
+
+
+def preprocess_with_batch_smote(
     kaggle_base_dir="/kaggle/input/diabetic-retinopathy-blindness-detection-c-data",
     img_size=(224, 224),
     batch_size=8,
 ):
     """
-    Preprocess dataset and apply SMOTE for synthetic oversampling with memory optimization.
+    Preprocess dataset and apply SMOTE for synthetic oversampling with batch-wise processing.
     """
     # Load and prepare dataset
     train_labels_path = os.path.join(kaggle_base_dir, "trainLabels.csv")
@@ -294,7 +316,8 @@ def preprocess_with_smote(
     )
     train_df = retina_df[retina_df["PatientId"].isin(train_ids)]
     valid_df = retina_df[retina_df["PatientId"].isin(valid_ids)]
-    print("train", train_df.shape[0], "validation", valid_df.shape[0])
+    print("[INFO] Training set size:", train_df.shape[0])
+    print("[INFO] Validation set size:", valid_df.shape[0])
 
     # Data augmentation and preprocessing function
     def tf_image_loader(
@@ -329,12 +352,22 @@ def preprocess_with_smote(
 
         return _func
 
-    def extract_features_in_batches(image_paths, labels, img_size, batch_size=500):
+    def process_batch(image_paths, labels, img_size):
         """
-        Extract features in batches to reduce memory usage.
+        Process a single batch of images and labels.
         """
-        features = []
-        labels_out = []
+        batch_features = []
+        for path in image_paths:
+            img = tf.image.decode_jpeg(tf.io.read_file(path), channels=3)
+            img = tf.image.resize(img, img_size)
+            batch_features.append(img.numpy().flatten())
+        batch_features = np.array(batch_features)
+        return batch_features, labels
+
+    def smote_batch_generator(image_paths, labels, img_size, batch_size, smote):
+        """
+        Batch generator that applies SMOTE on each batch to avoid memory overflow.
+        """
         scaler = StandardScaler()
         start_time = time.time()
 
@@ -342,46 +375,40 @@ def preprocess_with_smote(
             batch_paths = image_paths[i : i + batch_size]
             batch_labels = labels[i : i + batch_size]
 
-            batch_features = []
-            for path in batch_paths:
-                img = tf.image.decode_jpeg(tf.io.read_file(path), channels=3)
-                img = tf.image.resize(img, img_size)
-                batch_features.append(img.numpy().flatten())
+            batch_features, batch_labels = process_batch(batch_paths, batch_labels, img_size)
 
-            batch_features = np.array(batch_features)
+            # Scale features
             batch_features = scaler.fit_transform(batch_features)
-            features.append(batch_features)
-            labels_out.append(batch_labels)
 
-            # Log progress
-            elapsed_time = (time.time() - start_time) / 60  # Convert to minutes
+            # Apply SMOTE to the batch
+            smote_features, smote_labels = smote.fit_resample(batch_features, batch_labels)
+
+            elapsed_time = (time.time() - start_time) / 60  # Cumulative elapsed time in minutes
             print(
                 f"[INFO] Processed {min(i + batch_size, len(image_paths))}/{len(image_paths)} images "
-                f"(Elapsed time: {elapsed_time:.2f} minutes)"
+                f"(Cumulative elapsed time: {elapsed_time:.2f} minutes)"
             )
 
-        return np.vstack(features), np.concatenate(labels_out)
+            yield smote_features, smote_labels
 
-    # Extract features and apply SMOTE in batches
-    print("[INFO] Extracting features and applying SMOTE in batches...")
-    train_features, train_labels = extract_features_in_batches(
-        train_df["path"].values, train_df["level"].values, img_size, batch_size=500
-    )
-
+    # Create the SMOTE batch generator
     smote = SMOTE(sampling_strategy="auto", random_state=42)
-    smote_features, smote_labels = smote.fit_resample(train_features, train_labels)
-
-    # Convert SMOTE data back to a DataFrame
-    smote_df = pd.DataFrame(smote_features)
-    smote_df["level"] = smote_labels
-    smote_df["level_cat"] = smote_df["level"].map(
-        lambda x: to_categorical(x, 1 + retina_df["level"].max())
+    smote_gen = smote_batch_generator(
+        train_df["path"].values, train_df["level"].values, img_size, batch_size=500, smote=smote
     )
 
-    # Generator function for creating TensorFlow datasets
+    # Process batches and create TensorFlow dataset
+    def flow_from_smote(smote_gen, num_classes):
+        for smote_features, smote_labels in smote_gen:
+            smote_labels_cat = to_categorical(smote_labels, num_classes)
+            yield smote_features, smote_labels_cat
+
     def flow_from_dataframe(
         core_idg, in_df, path_col, y_col, shuffle=True, color_mode="rgb"
     ):
+        """
+        Create a TensorFlow dataset from a Pandas DataFrame.
+        """
         ds = tf.data.Dataset.from_tensor_slices(
             (in_df[path_col].values, np.stack(in_df[y_col].values, axis=0))
         )
@@ -390,8 +417,14 @@ def preprocess_with_smote(
         ds = ds.map(lambda x, y: (core_idg(x), y), num_parallel_calls=tf.data.AUTOTUNE)
         return ds.batch(batch_size)
 
-    # Create data loaders
-    train_idg = tf_image_loader(out_size=img_size, vertical_flip=True, color_mode="rgb")
+    train_gen = tf.data.Dataset.from_generator(
+        lambda: flow_from_smote(smote_gen, num_classes=1 + retina_df["level"].max()),
+        output_signature=(
+            tf.TensorSpec(shape=(None, img_size[0] * img_size[1] * 3), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, 1 + retina_df["level"].max()), dtype=tf.float32),
+        ),
+    )
+
     valid_idg = tf_image_loader(
         out_size=img_size,
         vertical_flip=False,
@@ -402,16 +435,11 @@ def preprocess_with_smote(
         random_hue=False,
         color_mode="rgb",
     )
-
-    train_gen = flow_from_dataframe(
-        train_idg, smote_df, path_col="path", y_col="level_cat"
-    )
     valid_gen = flow_from_dataframe(
         valid_idg, valid_df, path_col="path", y_col="level_cat", shuffle=False
     )
 
-    return train_gen, valid_gen
-
+    return train_gen.batch(batch_size), valid_gen
 
 # Usage example:
 # train_gen, valid_gen = preprocess_with_smote()
