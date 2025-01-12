@@ -385,14 +385,43 @@ def preprocess_with_smote(
     )
 
     print("[INFO] SMOTE-based training generator created.")
-    print("[INFO] Final class counts in validation data:")
-    for class_label, count in valid_df["level"].value_counts().items():
+
+    # After train_gen and valid_gen are created
+    print("[INFO] Training and Validation Generators Summary")
+
+    # Class counts from training generator
+    train_class_counts = Counter()
+    print("[INFO] Computing class counts for the training generator...")
+    for i, (features, labels) in enumerate(train_gen.take(1)):  # Process only one batch
+        train_class_counts.update(np.argmax(labels.numpy(), axis=1))  # Update class counts
+        print(f"[INFO] Training generator batch {i + 1}:")
+        print(f"  Features shape: {features.shape}")
+        print(f"  Labels shape: {labels.shape}")
+
+    print("[INFO] Final class counts in the training generator:")
+    for class_label, count in train_class_counts.items():
         print(f"Class {class_label}: {count}")
-        
-    # Print the final call counts
-    print("[INFO] Function call counts:")
-    for func, count in call_counts.items():
-        print(f"{func}: {count}")
+
+    # Class counts from validation generator
+    valid_class_counts = Counter()
+    print("[INFO] Computing class counts for the validation generator...")
+    for i, (features, labels) in enumerate(valid_gen.take(1)):  # Process only one batch
+        valid_class_counts.update(np.argmax(labels.numpy(), axis=1))  # Update class counts
+        print(f"[INFO] Validation generator batch {i + 1}:")
+        print(f"  Features shape: {features.shape}")
+        print(f"  Labels shape: {labels.shape}")
+
+    print("[INFO] Final class counts in the validation generator:")
+    for class_label, count in valid_class_counts.items():
+        print(f"Class {class_label}: {count}")
+
+    # Printing Function Call Counts (if implemented)
+    if "call_counts" in locals():
+        print("[INFO] Function call counts:")
+        for func, count in call_counts.items():
+            print(f"{func}: {count}")
+    else:
+        print("[INFO] No function call counts recorded.")
 
     return train_gen, valid_gen
 
