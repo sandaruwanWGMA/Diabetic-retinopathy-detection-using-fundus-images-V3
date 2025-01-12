@@ -176,6 +176,8 @@ from imblearn.over_sampling import SMOTE
 from tensorflow.keras.utils import to_categorical
 import time
 from collections import Counter
+from sklearn.model_selection import StratifiedShuffleSplit
+
 
 # Initialize counters
 call_counts = Counter()
@@ -252,7 +254,11 @@ def preprocess_with_smote(
 
         return _func
 
+
     def dynamic_smote_fit_resample(smote, features, labels):
+        """
+        Dynamically adjusts k_neighbors for SMOTE. Falls back to stratified sampling if SMOTE fails.
+        """
         try:
             # Adjust k_neighbors dynamically based on the smallest class size
             unique_labels, counts = np.unique(labels, return_counts=True)
@@ -265,7 +271,19 @@ def preprocess_with_smote(
 
         except Exception as e:
             print(f"[ERROR] Failed SMOTE resampling: {e}")
-            raise
+            print("[INFO] Falling back to stratified sampling.")
+
+            # Perform stratified sampling as a fallback
+            try:
+                splitter = StratifiedShuffleSplit(n_splits=1, test_size=0.5, random_state=42)
+                for train_index, test_index in splitter.split(features, labels):
+                    stratified_features = features[train_index]
+                    stratified_labels = labels[train_index]
+                    return stratified_features, stratified_labels
+            except Exception as stratified_error:
+                print(f"[ERROR] Stratified sampling also failed: {stratified_error}")
+                raise
+
 
     def process_batch(image_paths, labels, img_size, augment=True):
         """
