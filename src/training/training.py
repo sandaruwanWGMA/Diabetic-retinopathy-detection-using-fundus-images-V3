@@ -69,6 +69,21 @@ else:
 
 train_generator, validation_generator = preprocess_with_smote()
 
+
+####### ONLY FOR PRE-PROCESSING WITH SMOTE #######
+
+# Verify generators
+try:
+    print("[INFO] Verifying data generators...")
+    for gen, name in zip([train_generator, validation_generator], ["Training", "Validation"]):
+        for _ in gen:
+            pass
+        print(f"[INFO] {name} generator verified successfully.")
+except Exception as e:
+    print(f"[ERROR] Data generator verification failed: {e}")
+    raise
+
+
 # Train and evaluate using generators
 custom_early_stopping = CustomEarlyStopping(patience=15, min_delta=0.01)
 
