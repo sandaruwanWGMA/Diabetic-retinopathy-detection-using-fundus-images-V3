@@ -389,39 +389,33 @@ def preprocess_with_smote(
     # After train_gen and valid_gen are created
     print("[INFO] Training and Validation Generators Summary")
 
-    # Class counts from training generator
+    # Class counts from the training generator
     train_class_counts = Counter()
-    print("[INFO] Computing class counts for the training generator...")
-    for i, (features, labels) in enumerate(train_gen.take(1)):  # Process only one batch
+    print("[INFO] Computing class counts for the entire training generator...")
+    for i, (features, labels) in enumerate(train_gen):  # Iterate over all batches
         train_class_counts.update(np.argmax(labels.numpy(), axis=1))  # Update class counts
-        print(f"[INFO] Training generator batch {i + 1}:")
-        print(f"  Features shape: {features.shape}")
-        print(f"  Labels shape: {labels.shape}")
+        if i == 0:  # Print details of the first batch for reference
+            print(f"[INFO] Training generator batch {i + 1}:")
+            print(f"  Features shape: {features.shape}")
+            print(f"  Labels shape: {labels.shape}")
 
-    print("[INFO] Final class counts in the training generator:")
+    print("[INFO] Final class counts in the training generator after processing all batches:")
     for class_label, count in train_class_counts.items():
         print(f"Class {class_label}: {count}")
 
-    # Class counts from validation generator
+    # Class counts from the validation generator
     valid_class_counts = Counter()
-    print("[INFO] Computing class counts for the validation generator...")
-    for i, (features, labels) in enumerate(valid_gen.take(1)):  # Process only one batch
+    print("[INFO] Computing class counts for the entire validation generator...")
+    for i, (features, labels) in enumerate(valid_gen):  # Iterate over all batches
         valid_class_counts.update(np.argmax(labels.numpy(), axis=1))  # Update class counts
-        print(f"[INFO] Validation generator batch {i + 1}:")
-        print(f"  Features shape: {features.shape}")
-        print(f"  Labels shape: {labels.shape}")
+        if i == 0:  # Print details of the first batch for reference
+            print(f"[INFO] Validation generator batch {i + 1}:")
+            print(f"  Features shape: {features.shape}")
+            print(f"  Labels shape: {labels.shape}")
 
-    print("[INFO] Final class counts in the validation generator:")
+    print("[INFO] Final class counts in the validation generator after processing all batches:")
     for class_label, count in valid_class_counts.items():
         print(f"Class {class_label}: {count}")
-
-    # Printing Function Call Counts (if implemented)
-    if "call_counts" in locals():
-        print("[INFO] Function call counts:")
-        for func, count in call_counts.items():
-            print(f"{func}: {count}")
-    else:
-        print("[INFO] No function call counts recorded.")
 
     return train_gen, valid_gen
 
