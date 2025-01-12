@@ -69,6 +69,22 @@ else:
 
 train_generator, validation_generator = preprocess_with_smote(batch_size=64)
 
+for i, (features, labels) in enumerate(train_generator.take(5)):  # Take first 5 batches for debugging
+    print(f"[DEBUG] Train Gen - Batch {i + 1}: Features shape: {features.shape}, Labels shape: {labels.shape}")
+    if labels.shape[0] == 0:
+        print(f"[ERROR] Train Gen - Batch {i + 1} has empty labels!")
+        raise ValueError("Generator yielded empty labels!")
+print("[INFO] Train generator labels are valid.")
+
+
+for i, (features, labels) in enumerate(validation_generator.take(5)):  # Take first 5 batches for debugging
+    print(f"[DEBUG] Validation Gen - Batch {i + 1}: Features shape: {features.shape}, Labels shape: {labels.shape}")
+    if labels.shape[0] == 0:
+        print(f"[ERROR] Validation Gen - Batch {i + 1} has empty labels!")
+        raise ValueError("Generator yielded empty labels!")
+print("[INFO] Validation generator labels are valid.")
+
+
 
 ####### ONLY FOR PRE-PROCESSING WITH SMOTE #######
 
