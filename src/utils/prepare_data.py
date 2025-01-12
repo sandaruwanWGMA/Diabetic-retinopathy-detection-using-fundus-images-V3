@@ -247,6 +247,34 @@ def preprocess_with_smote(
             return preproc_func(X)
 
         return _func
+    
+    def dynamic_smote_fit_resample(smote, features, labels):
+        """
+        Dynamically applies SMOTE with adjusted parameters based on the batch size or distribution.
+
+        Parameters:
+            smote (SMOTE): The SMOTE instance to use for resampling.
+            features (np.ndarray): The feature matrix for the current batch.
+            labels (np.ndarray): The label array for the current batch.
+
+        Returns:
+            smote_features, smote_labels: The resampled features and labels.
+        """
+        try:
+            # Dynamically adjust k_neighbors if necessary
+            n_samples = len(labels)
+            if smote.k_neighbors >= n_samples:
+                adjusted_k_neighbors = max(1, n_samples - 1)  # Minimum of 1 neighbor
+                smote.k_neighbors = adjusted_k_neighbors
+                print(f"[INFO] Adjusted k_neighbors to {adjusted_k_neighbors} for SMOTE.")
+
+            smote_features, smote_labels = smote.fit_resample(features, labels)
+            return smote_features, smote_labels
+
+        except Exception as e:
+            print(f"[ERROR] Failed SMOTE resampling: {e}")
+            raise
+
 
     def process_batch(image_paths, labels, img_size):
         """
@@ -261,7 +289,7 @@ def preprocess_with_smote(
 
     def smote_batch_generator(image_paths, labels, img_size, batch_size, smote):
         """
-        Generator for applying SMOTE incrementally batch by batch.
+        Generator for applying SMOTE incrementally batch by batch with dynamic adjustments.
         """
         scaler = StandardScaler()
         start_time = time.time()
@@ -270,21 +298,13 @@ def preprocess_with_smote(
             batch_paths = image_paths[i : i + batch_size]
             batch_labels = labels[i : i + batch_size]
 
-            print(f"[DEBUG] Processing batch {i // batch_size + 1}...")
-            print(f"[DEBUG] Batch paths: {batch_paths[:3]} (showing first 3 paths)")
-            print(f"[DEBUG] Batch labels: {batch_labels[:10]} (showing first 10 labels)")
-
             # Process and scale the batch
             batch_features, batch_labels = process_batch(batch_paths, batch_labels, img_size)
-            print(f"[DEBUG] Batch features shape: {batch_features.shape}")
-
             batch_features = scaler.fit_transform(batch_features)
 
-            # Apply SMOTE to the batch
+            # Apply SMOTE dynamically
             try:
-                smote_features, smote_labels = smote.fit_resample(batch_features, batch_labels)
-                print(f"[DEBUG] SMOTE features shape: {smote_features.shape}")
-                print(f"[DEBUG] SMOTE labels count: {Counter(smote_labels)}")
+                smote_features, smote_labels = dynamic_smote_fit_resample(smote, batch_features, batch_labels)
             except Exception as e:
                 print(f"[ERROR] SMOTE failed on batch {i // batch_size + 1}: {e}")
                 raise
@@ -303,11 +323,11 @@ def preprocess_with_smote(
     for class_label, count in class_counts.items():
         print(f"Class {class_label}: {count}")
 
-    # Create the SMOTE batch generator
     smote = SMOTE(sampling_strategy="auto", random_state=42)
     smote_gen = smote_batch_generator(
         train_df["path"].values, train_df["level"].values, img_size, batch_size=smote_batch_size, smote=smote
     )
+
     
     # Debugging class counts after SMOTE for the first batch
     try:
@@ -324,7 +344,6 @@ def preprocess_with_smote(
     def flow_from_smote(smote_gen, num_classes):
         for smote_features, smote_labels in smote_gen:
             smote_labels_cat = to_categorical(smote_labels, num_classes)
-            print(f"[DEBUG] Generator yielded features shape: {smote_features.shape}, labels shape: {smote_labels_cat.shape}")
             yield smote_features, smote_labels_cat
 
     train_gen = tf.data.Dataset.from_generator(
