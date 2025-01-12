@@ -177,7 +177,8 @@ from tensorflow.keras.utils import to_categorical
 import time
 from collections import Counter
 
-import gc
+# Initialize counters
+call_counts = Counter()
 
 def preprocess_with_smote(
     kaggle_base_dir="/kaggle/input/diabetic-retinopathy-blindness-detection-c-data",
@@ -186,8 +187,10 @@ def preprocess_with_smote(
     smote_batch_size=256,
 ):
     """
-    Preprocess dataset and apply SMOTE incrementally with data augmentation.
+    Preprocess dataset and apply SMOTE incrementally for one batch at a time with data augmentation.
     """
+    import gc
+
     # Load and prepare dataset
     train_labels_path = os.path.join(kaggle_base_dir, "trainLabels.csv")
     train_images_dir = os.path.join(kaggle_base_dir, "train_images_768", "train")
@@ -217,7 +220,6 @@ def preprocess_with_smote(
     print(f"[INFO] Training set size: {train_df.shape[0]}")
     print(f"[INFO] Validation set size: {valid_df.shape[0]}")
 
-    # Data augmentation function
     def tf_image_loader(
         out_size,
         horizontal_flip=True,
@@ -249,13 +251,10 @@ def preprocess_with_smote(
             return preproc_func(X)
 
         return _func
-    
+
     def dynamic_smote_fit_resample(smote, features, labels):
-        """
-        Dynamically adjusts k_neighbors for SMOTE based on the current batch size.
-        """
         try:
-            # Adjust k_neighbors based on the minimum class count
+            # Adjust k_neighbors dynamically based on the smallest class size
             unique_labels, counts = np.unique(labels, return_counts=True)
             min_samples = min(counts)
             adjusted_k_neighbors = max(1, min(min_samples - 1, smote.k_neighbors))
@@ -268,23 +267,22 @@ def preprocess_with_smote(
             print(f"[ERROR] Failed SMOTE resampling: {e}")
             raise
 
-
-
-    def process_batch(image_paths, labels, img_size):
+    def process_batch(image_paths, labels, img_size, augment=True):
         """
-        Process a single batch of images and labels.
+        Process a single batch of images and labels with optional data augmentation.
         """
         batch_features = []
         for path in image_paths:
             img = tf.image.decode_jpeg(tf.io.read_file(path), channels=3)
             img = tf.image.resize(img, img_size)
+            if augment:
+                img = tf_image_loader(img_size)(path)
             batch_features.append(img.numpy().flatten())
         return np.array(batch_features), np.array(labels)
 
-
     def smote_batch_generator(image_paths, labels, img_size, batch_size, smote):
         """
-        Generator for applying SMOTE incrementally batch by batch with dynamic k_neighbors adjustment and memory cleanup.
+        Generator for SMOTE batches, processing one batch at a time with augmentation.
         """
         scaler = StandardScaler()
         start_time = time.time()
@@ -294,21 +292,19 @@ def preprocess_with_smote(
             batch_labels = labels[i : i + batch_size]
 
             # Process and scale the batch
-            batch_features, batch_labels = process_batch(batch_paths, batch_labels, img_size)
+            batch_features, batch_labels = process_batch(batch_paths, batch_labels, img_size, augment=True)
             batch_features = scaler.fit_transform(batch_features)
 
-            # Apply dynamic SMOTE
             try:
                 smote_features, smote_labels = dynamic_smote_fit_resample(smote, batch_features, batch_labels)
             except Exception as e:
                 print(f"[ERROR] SMOTE failed on batch {i // batch_size + 1}: {e}")
                 continue
 
-            # Cleanup after processing
             del batch_features, batch_labels
             gc.collect()
 
-            elapsed_time = (time.time() - start_time) / 60  # Cumulative elapsed time in minutes
+            elapsed_time = (time.time() - start_time) / 60
             print(
                 f"[INFO] Processed {min(i + batch_size, len(image_paths))}/{len(image_paths)} images "
                 f"(Elapsed time: {elapsed_time:.2f} minutes)"
@@ -316,39 +312,27 @@ def preprocess_with_smote(
 
             yield smote_features, smote_labels
 
-            # Cleanup after yielding
             del smote_features, smote_labels
             gc.collect()
 
-            
-    # Print the class distribution
     print("[INFO] Class counts before SMOTE:")
-    class_counts = train_df["level"].value_counts()
-    for class_label, count in class_counts.items():
+    for class_label, count in train_df["level"].value_counts().items():
         print(f"Class {class_label}: {count}")
 
     smote = SMOTE(sampling_strategy="auto", random_state=42)
-    smote_gen = smote_batch_generator(
-        train_df["path"].values, train_df["level"].values, img_size, batch_size=smote_batch_size, smote=smote
-    )
 
-    
-    # Debugging class counts after SMOTE for the first batch
-    try:
-        first_smote_features, first_smote_labels = next(smote_gen)
-        print("[INFO] Class counts after SMOTE (first batch):")
-        class_counts = Counter(first_smote_labels)
-        for class_label, count in class_counts.items():
-            print(f"Class {class_label}: {count}")
-    except StopIteration:
-        print("[ERROR] No batches generated during SMOTE. Check your data and parameters.")
-        raise
-
-    # Create TensorFlow dataset from SMOTE generator
+    # Creating a dynamic generator
     def flow_from_smote(smote_gen, num_classes):
+        """
+        Dynamically create a generator from the SMOTE generator.
+        """
         for smote_features, smote_labels in smote_gen:
             smote_labels_cat = to_categorical(smote_labels, num_classes)
             yield smote_features, smote_labels_cat
+
+    smote_gen = smote_batch_generator(
+        train_df["path"].values, train_df["level"].values, img_size, batch_size=smote_batch_size, smote=smote
+    )
 
     train_gen = tf.data.Dataset.from_generator(
         lambda: flow_from_smote(smote_gen, num_classes=1 + retina_df["level"].max()),
@@ -358,7 +342,6 @@ def preprocess_with_smote(
         ),
     )
 
-    # Validation generator creation
     valid_idg = tf_image_loader(
         out_size=img_size,
         vertical_flip=False,
@@ -369,13 +352,8 @@ def preprocess_with_smote(
         random_hue=False,
         color_mode="rgb",
     )
-    
-    def flow_from_dataframe(
-        core_idg, in_df, path_col, y_col, shuffle=True, color_mode="rgb"
-    ):
-        """
-        Create a TensorFlow dataset from a DataFrame.
-        """
+
+    def flow_from_dataframe(core_idg, in_df, path_col, y_col, shuffle=True):
         ds = tf.data.Dataset.from_tensor_slices(
             (in_df[path_col].values, np.stack(in_df[y_col].values, axis=0))
         )
@@ -388,7 +366,17 @@ def preprocess_with_smote(
         valid_idg, valid_df, path_col="path", y_col="level_cat", shuffle=False
     )
 
-    return train_gen.batch(batch_size), valid_gen
+    print("[INFO] SMOTE-based training generator created.")
+    print("[INFO] Final class counts in validation data:")
+    for class_label, count in valid_df["level"].value_counts().items():
+        print(f"Class {class_label}: {count}")
+        
+    # Print the final call counts
+    print("[INFO] Function call counts:")
+    for func, count in call_counts.items():
+        print(f"{func}: {count}")
+
+    return train_gen, valid_gen
 
 # Usage example:
 # train_gen, valid_gen = preprocess_with_smote()
