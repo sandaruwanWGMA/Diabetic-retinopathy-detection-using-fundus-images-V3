@@ -309,12 +309,15 @@ def preprocess_with_smote(
             batch_paths = image_paths[i : i + batch_size]
             batch_labels = labels[i : i + batch_size]
 
-            # Process and scale the batch
+            # Process the batch without flattening
             batch_features, batch_labels = process_batch(batch_paths, batch_labels, img_size, augment=True)
-            batch_features = scaler.fit_transform(batch_features)
+            original_shape = batch_features.shape  # Save the original shape
+            batch_features_flat = batch_features.reshape(len(batch_features), -1)  # Flatten for SMOTE
+            batch_features_flat = scaler.fit_transform(batch_features_flat)
 
             try:
-                smote_features, smote_labels = dynamic_smote_fit_resample(smote, batch_features, batch_labels)
+                smote_features_flat, smote_labels = dynamic_smote_fit_resample(smote, batch_features_flat, batch_labels)
+                smote_features = smote_features_flat.reshape(-1, *original_shape[1:])  # Reshape back to original shape
             except Exception as e:
                 print(f"[ERROR] SMOTE failed on batch {i // batch_size + 1}: {e}")
                 continue
@@ -332,6 +335,7 @@ def preprocess_with_smote(
 
             del smote_features, smote_labels
             gc.collect()
+
 
     print("[INFO] Class counts before SMOTE:")
     for class_label, count in train_df["level"].value_counts().items():
