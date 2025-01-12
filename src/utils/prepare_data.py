@@ -177,11 +177,13 @@ from tensorflow.keras.utils import to_categorical
 import time
 from collections import Counter
 
+import gc
+
 def preprocess_with_smote(
     kaggle_base_dir="/kaggle/input/diabetic-retinopathy-blindness-detection-c-data",
     img_size=(224, 224),
     batch_size=8,
-    smote_batch_size=500,
+    smote_batch_size=256,
 ):
     """
     Preprocess dataset and apply SMOTE incrementally with data augmentation.
@@ -279,9 +281,10 @@ def preprocess_with_smote(
             batch_features.append(img.numpy().flatten())
         return np.array(batch_features), np.array(labels)
 
+
     def smote_batch_generator(image_paths, labels, img_size, batch_size, smote):
         """
-        Generator for applying SMOTE incrementally batch by batch with dynamic k_neighbors adjustment.
+        Generator for applying SMOTE incrementally batch by batch with dynamic k_neighbors adjustment and memory cleanup.
         """
         scaler = StandardScaler()
         start_time = time.time()
@@ -301,6 +304,10 @@ def preprocess_with_smote(
                 print(f"[ERROR] SMOTE failed on batch {i // batch_size + 1}: {e}")
                 continue
 
+            # Cleanup after processing
+            del batch_features, batch_labels
+            gc.collect()
+
             elapsed_time = (time.time() - start_time) / 60  # Cumulative elapsed time in minutes
             print(
                 f"[INFO] Processed {min(i + batch_size, len(image_paths))}/{len(image_paths)} images "
@@ -308,6 +315,10 @@ def preprocess_with_smote(
             )
 
             yield smote_features, smote_labels
+
+            # Cleanup after yielding
+            del smote_features, smote_labels
+            gc.collect()
 
             
     # Print the class distribution
