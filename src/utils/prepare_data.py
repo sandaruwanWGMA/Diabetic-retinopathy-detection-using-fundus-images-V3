@@ -186,7 +186,7 @@ def preprocess_with_smote(
     kaggle_base_dir="/kaggle/input/diabetic-retinopathy-blindness-detection-c-data",
     img_size=(224, 224),
     batch_size=8,
-    smote_batch_size=256,
+    smote_batch_size=1024,
 ):
     """
     Preprocess dataset and apply SMOTE incrementally for one batch at a time with data augmentation.
