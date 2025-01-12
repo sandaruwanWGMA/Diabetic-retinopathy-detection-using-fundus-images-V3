@@ -75,7 +75,7 @@ custom_early_stopping = CustomEarlyStopping(patience=15, min_delta=0.01)
 googlenet_model, resnet_model = load_models()
 
 
-####### FOR INCREMENTAL TRAINING WITH EPOCHS #######
+####### FOR INCREMENTAL TRAINING SGD WITH EPOCHS #######
 
 # num_classes = 5
 
@@ -117,16 +117,26 @@ googlenet_model, resnet_model = load_models()
 # save_losses_to_file(losses, "loss_values.txt")
 
 
-####### FOR TRAINING THE SVM #######
+####### FOR INCREMENTAL TRAINING SGD WITH EPOCHS AND FOCAL LOSS #######
 
-# Train the SVM model on the full dataset
-model, val_labels, y_val_pred, y_val_prob = train_svm_on_full_dataset(
-    train_generator=train_generator,  # Training generator
-    validation_generator=validation_generator,  # Validation generator
-    googlenet_model=googlenet_model,  # Pretrained GoogleNet model
-    resnet_model=resnet_model,  # Pretrained ResNet model
-    log_dir="logs",  # Directory to save logs/models
-    model_name="diabetic_retinopathy_model",  # Model name
+num_classes = 5
+
+# Train classifier incrementally with epochs using focal loss
+losses, y_val, y_pred, trained_model = (
+    incremental_train_classifier_with_epochs_focal_loss(
+        train_generator=train_generator,
+        validation_generator=validation_generator,
+        googlenet_model=googlenet_model,
+        resnet_model=resnet_model,
+        num_classes=num_classes,
+        classifier_type="SGD",
+        log_dir="logs",
+        model_name="diabetic_retinopathy_model",
+        num_epochs=25,
+        callbacks=[custom_early_stopping],
+        gamma=2.0,  # Focal Loss hyperparameter
+        alpha=0.25,  # Focal Loss hyperparameter for class weighting
+    )
 )
 
 # Ensure the saved_models directory exists
@@ -134,25 +144,60 @@ saved_models_dir = "saved_models"
 if not os.path.exists(saved_models_dir):
     os.makedirs(saved_models_dir)
 
-# Save the trained model
+# Define the path to save the trained model
 model_save_path = os.path.join(saved_models_dir, "trained_model.pkl")
+
+# Save the model
 with open(model_save_path, "wb") as f:
-    pickle.dump(model, f)
-print(f"[INFO] Trained model saved successfully to {model_save_path}")
+    pickle.dump(trained_model, f)
 
-# Save classification report using your function
-classification_report_save_path = os.path.join(
-    saved_models_dir, "classification_report.csv"
-)
-save_classification_report(
-    val_labels, y_val_pred, filename=classification_report_save_path
-)
+print(f"Trained model saved successfully to {model_save_path}")
 
-# Plot and save confusion matrix using your function
-confusion_matrix_save_path = os.path.join(saved_models_dir, "confusion_matrix.png")
-plot_confusion_matrix(
-    val_labels, y_val_pred, classes=[0, 1, 2, 3, 4], filename=confusion_matrix_save_path
-)
+# Save classification report and plot confusion matrix
+save_classification_report(y_val, y_pred)
+plot_confusion_matrix(y_val, y_pred, classes=[0, 1, 2, 3, 4])
+
+# Existing plotting and saving functionality
+plot_loss(losses, title="Loss Function Over Time", save_path="loss_plot.png")
+save_losses_to_file(losses, "loss_values.txt")
+
+
+####### FOR TRAINING THE SVM #######
+
+# Train the SVM model on the full dataset
+# model, val_labels, y_val_pred, y_val_prob = train_svm_on_full_dataset(
+#     train_generator=train_generator,  # Training generator
+#     validation_generator=validation_generator,  # Validation generator
+#     googlenet_model=googlenet_model,  # Pretrained GoogleNet model
+#     resnet_model=resnet_model,  # Pretrained ResNet model
+#     log_dir="logs",  # Directory to save logs/models
+#     model_name="diabetic_retinopathy_model",  # Model name
+# )
+
+# # Ensure the saved_models directory exists
+# saved_models_dir = "saved_models"
+# if not os.path.exists(saved_models_dir):
+#     os.makedirs(saved_models_dir)
+
+# # Save the trained model
+# model_save_path = os.path.join(saved_models_dir, "trained_model.pkl")
+# with open(model_save_path, "wb") as f:
+#     pickle.dump(model, f)
+# print(f"[INFO] Trained model saved successfully to {model_save_path}")
+
+# # Save classification report using your function
+# classification_report_save_path = os.path.join(
+#     saved_models_dir, "classification_report.csv"
+# )
+# save_classification_report(
+#     val_labels, y_val_pred, filename=classification_report_save_path
+# )
+
+# # Plot and save confusion matrix using your function
+# confusion_matrix_save_path = os.path.join(saved_models_dir, "confusion_matrix.png")
+# plot_confusion_matrix(
+#     val_labels, y_val_pred, classes=[0, 1, 2, 3, 4], filename=confusion_matrix_save_path
+# )
 
 ####### FOR INCREMENTAL TRAINING WITH EPOCHS USING NEURAL NETWORK #######
 
@@ -211,7 +256,7 @@ print("Training complete. Logs, model, reports, and visualizations have been sav
 # Computed Class Weights: {0: 0.2770799347471452, 1: 2.6257004830917876, 2: 1.288878349537586, 3: 7.720454545454546, 4: 9.55219683655536}
 
 # Sandruwan WGMA: Epoch 20 SGD with Class weights
-# Molindu Sandaruwan: Epoch 10 SVM
+# Molindu Sandaruwan: SVM
 # Molindu Achintha: Epoch 25 NN
 
 ####################################

@@ -567,6 +567,7 @@ import pickle
 import json
 import numpy as np
 from datetime import datetime
+import tensorflow as tf
 
 
 def build_feature_based_model(input_dim=2000, num_classes=5):
@@ -765,6 +766,240 @@ def incremental_train_classifier_with_epochs(
                     f"[INFO] Saved NN weights to {weights_file} and architecture to {architecture_file}"
                 )
 
+            elif classifier_type == "SGD":
+                # Save SGD model using pickle
+                model_file = os.path.join(
+                    log_dir, f"{model_name}_epoch_{epoch}_{timestamp}.pkl"
+                )
+                with open(model_file, "wb") as f:
+                    pickle.dump(model, f)
+
+                print(f"[INFO] Saved SGD model to {model_file}")
+
+        print("[INFO] Training on all epochs completed.")
+
+        print("\n[INFO] Final Classification Report (Validation):")
+        print(classification_report(y_val_true, y_val_pred))
+
+    except StopIteration:
+        print("[INFO] Training stopped early.")
+
+    return losses, y_val_true, y_val_pred, model
+
+
+# Define Focal Loss for both NN and SGD
+class FocalLoss:
+    def __init__(self, gamma=2.0, alpha=None):
+        self.gamma = gamma
+        self.alpha = alpha
+
+    def __call__(self, y_true, y_pred):
+        y_true = tf.convert_to_tensor(y_true, dtype=tf.float32)
+        y_pred = tf.convert_to_tensor(y_pred, dtype=tf.float32)
+
+        epsilon = tf.keras.backend.epsilon()
+        y_pred = tf.clip_by_value(y_pred, epsilon, 1.0 - epsilon)
+
+        cross_entropy = -y_true * tf.math.log(y_pred)
+        focal_loss = tf.pow(1 - y_pred, self.gamma) * cross_entropy
+
+        if self.alpha is not None:
+            alpha_t = self.alpha * y_true + (1 - self.alpha) * (1 - y_true)
+            focal_loss *= alpha_t
+
+        return tf.reduce_mean(tf.reduce_sum(focal_loss, axis=-1))
+
+
+def incremental_train_classifier_with_epochs_focal_loss(
+    train_generator,
+    validation_generator,
+    googlenet_model,
+    resnet_model,
+    num_classes,
+    classifier_type="NN",
+    log_dir="logs",
+    model_name="trained_model",
+    num_epochs=10,
+    callbacks=None,
+    gamma=2.0,
+    alpha=None,
+):
+    if callbacks is None:
+        callbacks = []
+
+    print("[INFO] Started Incremental Training with Feature Extraction and Epochs...")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
+    losses = {"Training Loss": [], "Validation Loss": []}
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    scaler = StandardScaler()
+
+    # Precompute class weights
+    print("[INFO] Computing class weights...")
+    dummy_labels = np.concatenate(
+        [np.argmax(labels, axis=1) for _, labels in train_generator]
+    )
+    class_weights = compute_class_weight(
+        class_weight="balanced", classes=np.arange(num_classes), y=dummy_labels
+    )
+    class_weights_dict = dict(enumerate(class_weights))
+    print(f"[INFO] Computed Class Weights: {class_weights_dict}")
+
+    # Initialize the model
+    print(f"[INFO] Initializing classifier: {classifier_type}")
+    if classifier_type == "NN":
+        model = build_feature_based_model(input_dim=2000, num_classes=num_classes)
+        model.compile(
+            optimizer="adam",
+            loss=FocalLoss(gamma=gamma, alpha=alpha),
+            metrics=["accuracy"],
+        )
+    elif classifier_type == "SGD":
+        model = SGDClassifier(
+            loss="log",
+            penalty="l2",
+            max_iter=1,
+            warm_start=True,
+            class_weight="balanced",
+        )
+    else:
+        raise ValueError(f"Unsupported classifier type: {classifier_type}")
+
+    # Trigger callbacks at the start of training
+    for callback in callbacks:
+        if hasattr(callback, "on_train_start"):
+            callback.on_train_start()
+
+    try:
+        for epoch in range(1, num_epochs + 1):
+            print(f"\n[INFO] Epoch {epoch}/{num_epochs} started.")
+            batch_count = 0
+            y_train_true = []
+            y_train_pred = []
+
+            # Trigger callbacks at the start of an epoch
+            for callback in callbacks:
+                if hasattr(callback, "on_epoch_start"):
+                    callback.on_epoch_start(epoch)
+
+            for batch_images, batch_labels in train_generator:
+                batch_count += 1
+                print(f"[INFO] Training: Processing batch {batch_count}...")
+
+                # Extract features for the current batch
+                googlenet_features = googlenet_model.predict(batch_images, verbose=0)
+                resnet_features = resnet_model.predict(batch_images, verbose=0)
+                batch_features = np.concatenate(
+                    [googlenet_features, resnet_features], axis=1
+                )
+
+                # Scale features
+                batch_features = scaler.fit_transform(batch_features)
+
+                # If batch_labels are class indices, convert to one-hot
+                if len(batch_labels.shape) == 1 or batch_labels.shape[1] != num_classes:
+                    batch_labels_one_hot = to_categorical(batch_labels, num_classes)
+                else:
+                    # Use the labels as-is if they are already one-hot encoded
+                    batch_labels_one_hot = batch_labels
+
+                if classifier_type == "NN":
+                    # Train NN incrementally
+                    model.fit(
+                        batch_features,
+                        batch_labels_one_hot,
+                        epochs=1,
+                        verbose=0,
+                    )
+                elif classifier_type == "SGD":
+                    # Train SGD incrementally with class weights
+                    sample_weights = np.array(
+                        [
+                            class_weights_dict[label]
+                            for label in np.argmax(batch_labels, axis=1)
+                        ]
+                    )
+                    model.partial_fit(
+                        batch_features,
+                        np.argmax(batch_labels, axis=1),
+                        classes=np.arange(num_classes),
+                        sample_weight=sample_weights,
+                    )
+
+                # Track training accuracy for the batch
+                y_train_true.extend(np.argmax(batch_labels_one_hot, axis=1))
+                y_train_pred.extend(
+                    np.argmax(model.predict(batch_features, verbose=0), axis=1)
+                )
+
+            # Calculate training accuracy for the epoch
+            train_accuracy = accuracy_score(y_train_true, y_train_pred)
+            losses["Training Loss"].append(1 - train_accuracy)
+
+            print(f"[INFO] Epoch {epoch} Training Accuracy: {train_accuracy:.4f}")
+
+            # Validation accuracy trackers
+            y_val_true = []
+            y_val_pred = []
+
+            for batch_images, batch_labels in validation_generator:
+                print(f"[INFO] Validation: Processing batch...")
+
+                # Extract features for validation batch
+                googlenet_features = googlenet_model.predict(batch_images, verbose=0)
+                resnet_features = resnet_model.predict(batch_images, verbose=0)
+                batch_features = np.concatenate(
+                    [googlenet_features, resnet_features], axis=1
+                )
+
+                # Scale features
+                batch_features = scaler.transform(batch_features)
+
+                # Predict validation accuracy
+                y_pred_batch = np.argmax(
+                    model.predict(batch_features, verbose=0), axis=1
+                )
+                y_val_pred.extend(y_pred_batch)
+                y_val_true.extend(np.argmax(batch_labels, axis=1))
+
+            # Calculate validation accuracy for the epoch
+            val_accuracy = accuracy_score(y_val_true, y_val_pred)
+            losses["Validation Loss"].append(1 - val_accuracy)
+
+            # Trigger callbacks at the end of the epoch
+            logs = {"train_accuracy": train_accuracy, "val_accuracy": val_accuracy}
+            for callback in callbacks:
+                if hasattr(callback, "on_epoch_end"):
+                    callback.on_epoch_end(epoch, logs)
+
+            print(
+                f"[INFO] Epoch {epoch}/{num_epochs}: Training Accuracy = {train_accuracy:.4f}, Validation Accuracy = {val_accuracy:.4f}"
+            )
+
+            # Save the model after every epoch
+            if classifier_type == "NN":
+                # Save model weights
+                weights_file = os.path.join(
+                    log_dir, f"{model_name}_epoch_{epoch}_{timestamp}.weights.h5"
+                )
+                model.save_weights(weights_file)
+
+                # Save model architecture as JSON
+                architecture_file = os.path.join(
+                    log_dir, f"{model_name}_epoch_{epoch}_{timestamp}.json"
+                )
+                model_json = model.to_json()
+                with open(architecture_file, "w") as json_file:
+                    json_file.write(model_json)
+
+                print(
+                    f"[INFO] Saved NN weights to {weights_file} and architecture to {architecture_file}"
+                )
             elif classifier_type == "SGD":
                 # Save SGD model using pickle
                 model_file = os.path.join(
