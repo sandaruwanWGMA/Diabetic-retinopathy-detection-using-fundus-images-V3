@@ -175,6 +175,7 @@ from sklearn.preprocessing import StandardScaler
 from imblearn.over_sampling import SMOTE
 from tensorflow.keras.utils import to_categorical
 import time
+from collections import Counter
 
 def preprocess_with_smote(
     kaggle_base_dir="/kaggle/input/diabetic-retinopathy-blindness-detection-c-data",
@@ -269,12 +270,24 @@ def preprocess_with_smote(
             batch_paths = image_paths[i : i + batch_size]
             batch_labels = labels[i : i + batch_size]
 
+            print(f"[DEBUG] Processing batch {i // batch_size + 1}...")
+            print(f"[DEBUG] Batch paths: {batch_paths[:3]} (showing first 3 paths)")
+            print(f"[DEBUG] Batch labels: {batch_labels[:10]} (showing first 10 labels)")
+
             # Process and scale the batch
             batch_features, batch_labels = process_batch(batch_paths, batch_labels, img_size)
+            print(f"[DEBUG] Batch features shape: {batch_features.shape}")
+
             batch_features = scaler.fit_transform(batch_features)
 
             # Apply SMOTE to the batch
-            smote_features, smote_labels = smote.fit_resample(batch_features, batch_labels)
+            try:
+                smote_features, smote_labels = smote.fit_resample(batch_features, batch_labels)
+                print(f"[DEBUG] SMOTE features shape: {smote_features.shape}")
+                print(f"[DEBUG] SMOTE labels count: {Counter(smote_labels)}")
+            except Exception as e:
+                print(f"[ERROR] SMOTE failed on batch {i // batch_size + 1}: {e}")
+                raise
 
             elapsed_time = (time.time() - start_time) / 60  # Cumulative elapsed time in minutes
             print(
@@ -283,20 +296,35 @@ def preprocess_with_smote(
             )
 
             yield smote_features, smote_labels
-    
+            
+    # Print the class distribution
+    print("[INFO] Class counts before SMOTE:")
     class_counts = train_df["level"].value_counts()
-    print("[INFO] Class distribution:\n", class_counts)
+    for class_label, count in class_counts.items():
+        print(f"Class {class_label}: {count}")
 
     # Create the SMOTE batch generator
-    smote = SMOTE(sampling_strategy="auto", random_state=42, k_neighbors=2)
+    smote = SMOTE(sampling_strategy="auto", random_state=42)
     smote_gen = smote_batch_generator(
         train_df["path"].values, train_df["level"].values, img_size, batch_size=smote_batch_size, smote=smote
     )
+    
+    # Debugging class counts after SMOTE for the first batch
+    try:
+        first_smote_features, first_smote_labels = next(smote_gen)
+        print("[INFO] Class counts after SMOTE (first batch):")
+        class_counts = Counter(first_smote_labels)
+        for class_label, count in class_counts.items():
+            print(f"Class {class_label}: {count}")
+    except StopIteration:
+        print("[ERROR] No batches generated during SMOTE. Check your data and parameters.")
+        raise
 
     # Create TensorFlow dataset from SMOTE generator
     def flow_from_smote(smote_gen, num_classes):
         for smote_features, smote_labels in smote_gen:
             smote_labels_cat = to_categorical(smote_labels, num_classes)
+            print(f"[DEBUG] Generator yielded features shape: {smote_features.shape}, labels shape: {smote_labels_cat.shape}")
             yield smote_features, smote_labels_cat
 
     train_gen = tf.data.Dataset.from_generator(
