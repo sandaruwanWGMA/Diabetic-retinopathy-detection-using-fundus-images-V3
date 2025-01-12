@@ -250,23 +250,14 @@ def preprocess_with_smote(
     
     def dynamic_smote_fit_resample(smote, features, labels):
         """
-        Dynamically applies SMOTE with adjusted parameters based on the batch size or distribution.
-
-        Parameters:
-            smote (SMOTE): The SMOTE instance to use for resampling.
-            features (np.ndarray): The feature matrix for the current batch.
-            labels (np.ndarray): The label array for the current batch.
-
-        Returns:
-            smote_features, smote_labels: The resampled features and labels.
+        Dynamically adjusts k_neighbors for SMOTE based on the current batch size.
         """
         try:
-            # Dynamically adjust k_neighbors if necessary
-            n_samples = len(labels)
-            if smote.k_neighbors >= n_samples:
-                adjusted_k_neighbors = max(1, n_samples - 1)  # Minimum of 1 neighbor
-                smote.k_neighbors = adjusted_k_neighbors
-                print(f"[INFO] Adjusted k_neighbors to {adjusted_k_neighbors} for SMOTE.")
+            # Adjust k_neighbors based on the minimum class count
+            unique_labels, counts = np.unique(labels, return_counts=True)
+            min_samples = min(counts)
+            adjusted_k_neighbors = max(1, min(min_samples - 1, smote.k_neighbors))
+            smote.k_neighbors = adjusted_k_neighbors
 
             smote_features, smote_labels = smote.fit_resample(features, labels)
             return smote_features, smote_labels
@@ -274,6 +265,7 @@ def preprocess_with_smote(
         except Exception as e:
             print(f"[ERROR] Failed SMOTE resampling: {e}")
             raise
+
 
 
     def process_batch(image_paths, labels, img_size):
@@ -289,7 +281,7 @@ def preprocess_with_smote(
 
     def smote_batch_generator(image_paths, labels, img_size, batch_size, smote):
         """
-        Generator for applying SMOTE incrementally batch by batch with dynamic adjustments.
+        Generator for applying SMOTE incrementally batch by batch with dynamic k_neighbors adjustment.
         """
         scaler = StandardScaler()
         start_time = time.time()
@@ -302,20 +294,21 @@ def preprocess_with_smote(
             batch_features, batch_labels = process_batch(batch_paths, batch_labels, img_size)
             batch_features = scaler.fit_transform(batch_features)
 
-            # Apply SMOTE dynamically
+            # Apply dynamic SMOTE
             try:
                 smote_features, smote_labels = dynamic_smote_fit_resample(smote, batch_features, batch_labels)
             except Exception as e:
                 print(f"[ERROR] SMOTE failed on batch {i // batch_size + 1}: {e}")
-                raise
+                continue
 
             elapsed_time = (time.time() - start_time) / 60  # Cumulative elapsed time in minutes
             print(
                 f"[INFO] Processed {min(i + batch_size, len(image_paths))}/{len(image_paths)} images "
-                f"(Cumulative elapsed time: {elapsed_time:.2f} minutes)"
+                f"(Elapsed time: {elapsed_time:.2f} minutes)"
             )
 
             yield smote_features, smote_labels
+
             
     # Print the class distribution
     print("[INFO] Class counts before SMOTE:")
