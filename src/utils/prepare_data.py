@@ -244,11 +244,18 @@ from imblearn.over_sampling import SMOTE
 ############ Using SMOTE (Synthetic Minority Oversampling Technique) for Balancing Classes ############
 
 
-def preprocess(
+from imblearn.over_sampling import SMOTE
+from sklearn.preprocessing import StandardScaler
+
+
+def preprocess_with_smote(
     kaggle_base_dir="/kaggle/input/diabetic-retinopathy-blindness-detection-c-data",
     img_size=(224, 224),
     batch_size=8,
 ):
+    """
+    Preprocess dataset and apply SMOTE for synthetic oversampling.
+    """
     # Load and prepare dataset
     train_labels_path = os.path.join(kaggle_base_dir, "trainLabels.csv")
     train_images_dir = os.path.join(kaggle_base_dir, "train_images_768", "train")
@@ -277,33 +284,69 @@ def preprocess(
     valid_df = retina_df[retina_df["PatientId"].isin(valid_ids)]
     print("train", train_df.shape[0], "validation", valid_df.shape[0])
 
-    # Apply SMOTE for balancing classes in the training set
-    from imblearn.over_sampling import SMOTE
+    import time
 
-    print("[INFO] Applying SMOTE to balance training data...")
-    smote = SMOTE(sampling_strategy="auto", random_state=42)
+    def extract_features(image_paths, img_size):
+        """
+        Extracts features from images by resizing and flattening them.
 
-    # Prepare data for SMOTE (flatten one-hot labels)
-    train_features = train_df["path"].values
+        Parameters:
+            image_paths (list): List of paths to images.
+            img_size (tuple): Target size to resize images (width, height).
+
+        Returns:
+            np.array: Array of flattened image features.
+        """
+        features = []
+        start_time = time.time()
+        total_images = len(image_paths)
+
+        print(f"[INFO] Starting feature extraction for {total_images} images...")
+
+        for idx, path in enumerate(image_paths):
+            # Log progress every 500 images
+            if idx % 500 == 0 and idx > 0:
+                elapsed_time = time.time() - start_time
+                print(
+                    f"[INFO] Processed {idx}/{total_images} images "
+                    f"(Elapsed time: {elapsed_time:.2f} seconds)"
+                )
+
+            # Load, resize, and flatten the image
+            img = tf.image.decode_jpeg(tf.io.read_file(path), channels=3)
+            img = tf.image.resize(img, img_size)
+            features.append(img.numpy().flatten())  # Flatten the image
+
+        # Calculate total processing time
+        total_time = time.time() - start_time
+        print(f"[INFO] Feature extraction completed.")
+        print(f"[INFO] Total images processed: {total_images}")
+        print(f"[INFO] Total time taken: {total_time:.2f} seconds")
+        print(f"[INFO] Average time per image: {total_time / total_images:.4f} seconds")
+
+        return np.array(features)
+
+    # Extract features for SMOTE
+    print("[INFO] Extracting features for SMOTE...")
+    train_features = extract_features(train_df["path"].values, img_size)
     train_labels = train_df["level"].values
 
-    # Generate synthetic samples
-    train_features_resampled, train_labels_resampled = smote.fit_resample(
-        train_features.reshape(-1, 1), train_labels
+    # Apply SMOTE
+    print("[INFO] Applying SMOTE to balance training data...")
+    scaler = StandardScaler()
+    train_features_scaled = scaler.fit_transform(train_features)  # Normalize features
+    smote = SMOTE(sampling_strategy="auto", random_state=42)
+    smote_features, smote_labels = smote.fit_resample(
+        train_features_scaled, train_labels
     )
+    print(f"[INFO] SMOTE applied. New training data size: {len(smote_labels)}")
 
-    # Update train_df with resampled data
-    resampled_df = pd.DataFrame(
-        {
-            "path": train_features_resampled.flatten(),
-            "level": train_labels_resampled,
-        }
-    )
-    resampled_df["level_cat"] = resampled_df["level"].map(
+    # Convert SMOTE data back to a DataFrame
+    smote_df = pd.DataFrame(smote_features)
+    smote_df["level"] = smote_labels
+    smote_df["level_cat"] = smote_df["level"].map(
         lambda x: to_categorical(x, 1 + retina_df["level"].max())
     )
-    train_df = resampled_df
-    print("[INFO] SMOTE applied. New training data size:", train_df.shape[0])
 
     # Data augmentation and preprocessing function
     def tf_image_loader(
@@ -364,7 +407,7 @@ def preprocess(
     )
 
     train_gen = flow_from_dataframe(
-        train_idg, train_df, path_col="path", y_col="level_cat"
+        train_idg, smote_df, path_col="path", y_col="level_cat"
     )
     valid_gen = flow_from_dataframe(
         valid_idg, valid_df, path_col="path", y_col="level_cat", shuffle=False
@@ -374,4 +417,4 @@ def preprocess(
 
 
 # Usage example:
-# train_gen, valid_gen = preprocess()
+# train_gen, valid_gen = preprocess_with_smote()

@@ -16,6 +16,7 @@ from src.model.DiabeticRetinopathyDetectionModel import (
     load_models,
     incremental_train_classifier_with_epochs,
     train_svm_on_full_dataset,
+    incremental_train_classifier_with_epochs_focal_loss,
 )
 from src.utils.plotting import (
     plot_loss,
@@ -24,7 +25,7 @@ from src.utils.plotting import (
     plot_confusion_matrix,
 )
 
-from src.utils.prepare_data import preprocess
+from src.utils.prepare_data import preprocess, preprocess_with_smote
 from src.utils.schedulers import CustomEarlyStopping
 
 
@@ -66,7 +67,7 @@ else:
     print("No GPU detected. Training will fall back to CPU.")
 
 
-train_generator, validation_generator = preprocess()
+train_generator, validation_generator = preprocess_with_smote()
 
 # Train and evaluate using generators
 custom_early_stopping = CustomEarlyStopping(patience=15, min_delta=0.01)

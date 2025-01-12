@@ -359,6 +359,7 @@ from sklearn.metrics import (
 )
 import matplotlib.pyplot as plt
 import pickle
+import time
 
 
 def extract_features_for_svm(
@@ -384,43 +385,59 @@ def extract_features_for_svm(
     print("[INFO] Starting feature extraction for all images...")
     batch_count = 0
 
+    # Initialize the timer before starting the epochs
+    overall_start_time = time.time()
+
     for batch_images, batch_labels in image_generator:
         batch_count += 1
-        print(f"[INFO] Processing batch {batch_count}...")
+        if batch_count % 50 == 0:
+            print(f"[INFO] Start processing batch {batch_count}...")
 
-        # Track image and label shapes
-        print(f"[INFO] Batch {batch_count}: Image shape: {batch_images.shape}")
-        print(f"[INFO] Batch {batch_count}: Label shape: {batch_labels.shape}")
+            # Track image and label shapes
+            print(f"[INFO] Batch {batch_count}: Image shape: {batch_images.shape}")
+            print(f"[INFO] Batch {batch_count}: Label shape: {batch_labels.shape}")
 
-        # Extract features
-        print(f"[INFO] Extracting GoogleNet features for batch {batch_count}...")
+            # Extract features
+            print(f"[INFO] Extracting GoogleNet features for batch {batch_count}...")
+
         googlenet_features = googlenet_model.predict(batch_images, verbose=0)
-        print(
-            f"[INFO] Batch {batch_count}: GoogleNet features shape: {googlenet_features.shape}"
-        )
 
-        print(f"[INFO] Extracting ResNet features for batch {batch_count}...")
+        if batch_count % 50 == 0:
+            elapsed_time = time.time() - overall_start_time
+            print(
+                f"[INFO] Batch {batch_count}: GoogleNet features shape: {googlenet_features.shape} (Elapsed time: {elapsed_time:.2f} seconds"
+            )
+
+            print(f"[INFO] Extracting ResNet features for batch {batch_count}...")
+
         resnet_features = resnet_model.predict(batch_images, verbose=0)
-        print(
-            f"[INFO] Batch {batch_count}: ResNet features shape: {resnet_features.shape}"
-        )
 
-        # Combine features
-        print(f"[INFO] Combining features for batch {batch_count}...")
+        if batch_count % 50 == 0:
+            elapsed_time = time.time() - overall_start_time
+            print(
+                f"[INFO] Batch {batch_count}: ResNet features shape: {resnet_features.shape} (Elapsed time: {elapsed_time:.2f} seconds"
+            )
+
+            # Combine features
+            print(f"[INFO] Combining features for batch {batch_count}...")
+
         batch_features = np.concatenate([googlenet_features, resnet_features], axis=1)
-        print(
-            f"[INFO] Batch {batch_count}: Combined features shape: {batch_features.shape}"
-        )
+        if batch_count % 50 == 0:
+            print(
+                f"[INFO] Batch {batch_count}: Combined features shape: {batch_features.shape}"
+            )
 
-        # Convert one-hot encoded labels to class indices
-        print(f"[INFO] Converting labels for batch {batch_count}...")
-        batch_labels = np.argmax(batch_labels, axis=1)
+            # Convert one-hot encoded labels to class indices
+            print(f"[INFO] Converting labels for batch {batch_count}...")
+            batch_labels = np.argmax(batch_labels, axis=1)
 
-        # Accumulate features and labels
-        print(f"[INFO] Accumulating features and labels for batch {batch_count}...")
+            # Accumulate features and labels
+            print(f"[INFO] Accumulating features and labels for batch {batch_count}...")
         all_features.append(batch_features)
         all_labels.append(batch_labels)
-        print(f"[INFO] Batch {batch_count} processed successfully.")
+
+        if batch_count % 50 == 0:
+            print(f"[INFO] Batch {batch_count} processed successfully.")
 
     # Combine all features and labels
     print("[INFO] Combining all batches into a single dataset...")
@@ -540,6 +557,7 @@ def train_svm_on_full_dataset(
     return model, val_labels, y_val_pred, y_val_prob
 
 
+import time
 import os
 import logging
 import numpy as np
@@ -870,6 +888,9 @@ def incremental_train_classifier_with_epochs_focal_loss(
     else:
         raise ValueError(f"Unsupported classifier type: {classifier_type}")
 
+    # Initialize the timer before starting the epochs
+    overall_start_time = time.time()
+
     # Trigger callbacks at the start of training
     for callback in callbacks:
         if hasattr(callback, "on_train_start"):
@@ -889,7 +910,8 @@ def incremental_train_classifier_with_epochs_focal_loss(
 
             for batch_images, batch_labels in train_generator:
                 batch_count += 1
-                print(f"[INFO] Training: Processing batch {batch_count}...")
+                if batch_count % 50 == 0:
+                    print(f"[INFO] Training: Start processing batch {batch_count}...")
 
                 # Extract features for the current batch
                 googlenet_features = googlenet_model.predict(batch_images, verbose=0)
@@ -909,18 +931,22 @@ def incremental_train_classifier_with_epochs_focal_loss(
                     batch_labels_one_hot = batch_labels
 
                 if classifier_type == "NN":
-                    # Train NN incrementally
+                    # Train NN incrementally with manually adjusted class weights
                     model.fit(
                         batch_features,
                         batch_labels_one_hot,
                         epochs=1,
                         verbose=0,
+                        class_weight=class_weights_dict,  # Updated weights
                     )
                 elif classifier_type == "SGD":
-                    # Train SGD incrementally with class weights
+                    # Train SGD incrementally with manually adjusted class weights
                     sample_weights = np.array(
                         [
                             class_weights_dict[label]
+                            * (
+                                2.0 if label in [3, 4] else 1.0
+                            )  # Boost classes 3 and 4 by * 2
                             for label in np.argmax(batch_labels, axis=1)
                         ]
                     )
@@ -937,6 +963,13 @@ def incremental_train_classifier_with_epochs_focal_loss(
                     np.argmax(model.predict(batch_features, verbose=0), axis=1)
                 )
 
+                if batch_count % 50 == 0:
+                    # Calculate cumulative elapsed time for training
+                    elapsed_time = time.time() - overall_start_time
+                    print(
+                        f"[INFO] Training - Epoch {epoch}/{num_epochs} - Processed Batch {batch_count} (Elapsed time: {elapsed_time:.2f} seconds)"
+                    )
+
             # Calculate training accuracy for the epoch
             train_accuracy = accuracy_score(y_train_true, y_train_pred)
             losses["Training Loss"].append(1 - train_accuracy)
@@ -948,7 +981,8 @@ def incremental_train_classifier_with_epochs_focal_loss(
             y_val_pred = []
 
             for batch_images, batch_labels in validation_generator:
-                print(f"[INFO] Validation: Processing batch...")
+                if batch_count % 50 == 0:
+                    print(f"[INFO] Validation: Processing batch {batch_count}...")
 
                 # Extract features for validation batch
                 googlenet_features = googlenet_model.predict(batch_images, verbose=0)
@@ -966,6 +1000,13 @@ def incremental_train_classifier_with_epochs_focal_loss(
                 )
                 y_val_pred.extend(y_pred_batch)
                 y_val_true.extend(np.argmax(batch_labels, axis=1))
+
+                if batch_count % 50 == 0:
+                    # Calculate cumulative elapsed time for training
+                    elapsed_time = time.time() - overall_start_time
+                    print(
+                        f"[INFO] Validation - Epoch {epoch}/{num_epochs} - Processed Batch {batch_count} (Elapsed time: {elapsed_time:.2f} seconds)"
+                    )
 
             # Calculate validation accuracy for the epoch
             val_accuracy = accuracy_score(y_val_true, y_val_pred)
