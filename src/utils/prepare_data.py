@@ -156,6 +156,16 @@ import os
 import time
 
 
+import os
+import time
+import numpy as np
+import pandas as pd
+import tensorflow as tf
+from imblearn.over_sampling import SMOTE
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from tensorflow.keras.utils import to_categorical
+
 def preprocess_with_smote(
     kaggle_base_dir="/kaggle/input/diabetic-retinopathy-blindness-detection-c-data",
     img_size=(224, 224),
@@ -253,6 +263,12 @@ def preprocess_with_smote(
 
             # Scale features
             batch_features = scaler.fit_transform(batch_features)
+
+            # Dynamically adjust n_neighbors to avoid errors with small class sizes
+            unique_classes, class_counts = np.unique(batch_labels, return_counts=True)
+            min_samples = np.min(class_counts)
+            n_neighbors = min(5, min_samples - 1) if min_samples > 1 else 1
+            smote.set_params(k_neighbors=n_neighbors)
 
             # Apply SMOTE to the batch
             smote_features, smote_labels = smote.fit_resample(batch_features, batch_labels)
