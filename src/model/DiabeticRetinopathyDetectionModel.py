@@ -861,9 +861,17 @@ def incremental_train_classifier_with_epochs_focal_loss(
 
     # Precompute class weights
     print("[INFO] Computing class weights...")
-    dummy_labels = np.concatenate(
-        [np.argmax(labels, axis=1) for _, labels in train_generator]
-    )
+
+    # Collect labels from the train generator
+    dummy_labels_list = []
+    for _, labels in train_generator:
+        dummy_labels_list.append(np.argmax(labels, axis=1))
+
+    if len(dummy_labels_list) == 0:
+        raise ValueError("[ERROR] Train generator is empty. No labels found to compute class weights.")
+
+    # Concatenate labels
+    dummy_labels = np.concatenate(dummy_labels_list)
     class_weights = compute_class_weight(
         class_weight="balanced", classes=np.arange(num_classes), y=dummy_labels
     )
