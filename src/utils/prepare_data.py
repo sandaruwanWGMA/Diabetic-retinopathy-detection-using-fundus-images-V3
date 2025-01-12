@@ -348,9 +348,9 @@ def preprocess_with_smote(
         """
         Dynamically create a generator from the SMOTE generator, ensuring reshaped output.
         """
-        for smote_features, smote_labels in smote_gen:
+        for i, (smote_features, smote_labels) in enumerate(smote_gen):
             print(f"[INFO] Yielding batch {i + 1} from SMOTE generator...")
-            
+                    
             # Reshape features back to (224, 224, 3)
             smote_features_reshaped = smote_features.reshape((-1, img_size[0], img_size[1], 3))
             smote_labels_cat = to_categorical(smote_labels, num_classes)
