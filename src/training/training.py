@@ -317,7 +317,10 @@ save_losses_to_file(losses, "loss_values.txt")
 # save_losses_to_file(losses, "loss_values_nn.txt")
 
 
-# print("Training complete. Logs, model, reports, and visualizations have been saved.")
+####################################
+
+
+print("Training complete. Logs, model, reports, and visualizations have been saved.")
 
 
 ####################################
