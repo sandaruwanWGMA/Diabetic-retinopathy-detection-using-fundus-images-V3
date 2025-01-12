@@ -504,11 +504,39 @@ def train_svm_on_full_dataset(
 
     # Compute class weights
     print("[INFO] Computing class weights...")
-    class_weights = compute_class_weight(
-        class_weight="balanced", classes=np.unique(train_labels), y=train_labels
-    )
-    class_weight_dict = dict(enumerate(class_weights))
-    print(f"[INFO] Computed Class Weights: {class_weight_dict}")
+
+    # Initialize an empty list to collect all labels
+    train_labels_list = []
+
+    # Loop through the generator to extract all labels
+    for i, (_, labels) in enumerate(train_generator):
+        print(f"[INFO] Processing batch {i + 1}: Labels shape: {labels.shape}")
+        try:
+            # Convert one-hot encoded labels to class indices
+            batch_labels = np.argmax(labels, axis=1)
+            train_labels_list.extend(batch_labels)  # Append batch labels to the list
+        except Exception as e:
+            raise ValueError(f"[ERROR] Failed to process labels in batch {i + 1}: {e}")
+
+        # Optional: Break early for debugging or to limit computation
+        # if i == 10: break
+
+    # Check if labels were collected
+    if len(train_labels_list) == 0:
+        raise ValueError("[ERROR] No labels found in the train generator. Cannot compute class weights.")
+
+    # Convert the collected labels list to a NumPy array
+    train_labels = np.array(train_labels_list)
+
+    # Compute class weights
+    try:
+        class_weights = compute_class_weight(
+            class_weight="balanced", classes=np.unique(train_labels), y=train_labels
+        )
+        class_weight_dict = dict(enumerate(class_weights))
+        print(f"[INFO] Computed Class Weights: {class_weight_dict}")
+    except Exception as e:
+        raise ValueError(f"[ERROR] Failed to compute class weights: {e}")
 
     # Initialize SVM with class weights
     print("[INFO] Initializing SVM classifier...")
@@ -861,22 +889,39 @@ def incremental_train_classifier_with_epochs_focal_loss(
 
     # Precompute class weights
     print("[INFO] Computing class weights...")
+    labels_list = []
 
-    # Collect labels from the train generator
-    dummy_labels_list = []
-    for _, labels in train_generator:
-        dummy_labels_list.append(np.argmax(labels, axis=1))
+    # Collect labels from the generator
+    for i, (_, labels) in enumerate(train_generator):
+        print(f"[INFO] Processing batch {i + 1}: Labels shape: {labels.shape}")
+        try:
+            batch_labels = np.argmax(labels, axis=1)
+            labels_list.append(batch_labels)
+        except Exception as e:
+            raise ValueError(f"[ERROR] Failed to process labels in batch {i + 1}: {e}")
 
-    if len(dummy_labels_list) == 0:
-        raise ValueError("[ERROR] Train generator is empty. No labels found to compute class weights.")
+        # Optionally, limit processing for debugging
+        # if i == 0: break
+
+    # Check for empty generator
+    if len(labels_list) == 0:
+        raise ValueError("[ERROR] Train generator yielded no labels. Cannot compute class weights.")
 
     # Concatenate labels
-    dummy_labels = np.concatenate(dummy_labels_list)
-    class_weights = compute_class_weight(
-        class_weight="balanced", classes=np.arange(num_classes), y=dummy_labels
-    )
-    class_weights_dict = dict(enumerate(class_weights))
-    print(f"[INFO] Computed Class Weights: {class_weights_dict}")
+    try:
+        dummy_labels = np.concatenate(labels_list)
+    except ValueError as e:
+        raise ValueError(f"[ERROR] Failed to concatenate labels: {e}")
+
+    # Compute class weights
+    try:
+        class_weights = compute_class_weight(
+            class_weight="balanced", classes=np.arange(num_classes), y=dummy_labels
+        )
+        class_weights_dict = dict(enumerate(class_weights))
+        print(f"[INFO] Computed Class Weights: {class_weights_dict}")
+    except Exception as e:
+        raise ValueError(f"[ERROR] Failed to compute class weights: {e}")
 
     # Initialize the model
     print(f"[INFO] Initializing classifier: {classifier_type}")
