@@ -283,9 +283,12 @@ def preprocess_with_smote(
             )
 
             yield smote_features, smote_labels
+    
+    class_counts = train_df["level"].value_counts()
+    print("[INFO] Class distribution:\n", class_counts)
 
     # Create the SMOTE batch generator
-    smote = SMOTE(sampling_strategy="auto", random_state=42)
+    smote = SMOTE(sampling_strategy="auto", random_state=42, k_neighbors=2)
     smote_gen = smote_batch_generator(
         train_df["path"].values, train_df["level"].values, img_size, batch_size=smote_batch_size, smote=smote
     )
