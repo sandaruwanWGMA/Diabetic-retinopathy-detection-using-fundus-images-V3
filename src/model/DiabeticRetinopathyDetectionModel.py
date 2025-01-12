@@ -404,8 +404,9 @@ def extract_features_for_svm(
 
         if batch_count % 50 == 0:
             elapsed_time = time.time() - overall_start_time
+            elapsed_time = elapsed_time / 60
             print(
-                f"[INFO] Batch {batch_count}: GoogleNet features shape: {googlenet_features.shape} (Elapsed time: {elapsed_time:.2f} seconds"
+                f"[INFO] Batch {batch_count}: GoogleNet features shape: {googlenet_features.shape} (Elapsed time: {elapsed_time:.2f} minutes)"
             )
 
             print(f"[INFO] Extracting ResNet features for batch {batch_count}...")
@@ -414,8 +415,9 @@ def extract_features_for_svm(
 
         if batch_count % 50 == 0:
             elapsed_time = time.time() - overall_start_time
+            elapsed_time = elapsed_time / 60
             print(
-                f"[INFO] Batch {batch_count}: ResNet features shape: {resnet_features.shape} (Elapsed time: {elapsed_time:.2f} seconds"
+                f"[INFO] Batch {batch_count}: ResNet features shape: {resnet_features.shape} (Elapsed time: {elapsed_time:.2f} minutes)"
             )
 
             # Combine features
@@ -966,8 +968,9 @@ def incremental_train_classifier_with_epochs_focal_loss(
                 if batch_count % 50 == 0:
                     # Calculate cumulative elapsed time for training
                     elapsed_time = time.time() - overall_start_time
+                    elapsed_time = elapsed_time / 60
                     print(
-                        f"[INFO] Training - Epoch {epoch}/{num_epochs} - Processed Batch {batch_count} (Elapsed time: {elapsed_time:.2f} seconds)"
+                        f"[INFO] Training - Epoch {epoch}/{num_epochs} - Processed Batch {batch_count} (Elapsed time: {elapsed_time:.2f} minutes)"
                     )
 
             # Calculate training accuracy for the epoch
@@ -1004,8 +1007,9 @@ def incremental_train_classifier_with_epochs_focal_loss(
                 if batch_count % 50 == 0:
                     # Calculate cumulative elapsed time for training
                     elapsed_time = time.time() - overall_start_time
+                    elapsed_time = elapsed_time / 60
                     print(
-                        f"[INFO] Validation - Epoch {epoch}/{num_epochs} - Processed Batch {batch_count} (Elapsed time: {elapsed_time:.2f} seconds)"
+                        f"[INFO] Validation - Epoch {epoch}/{num_epochs} - Processed Batch {batch_count} (Elapsed time: {elapsed_time:.2f} minutes)"
                     )
 
             # Calculate validation accuracy for the epoch
