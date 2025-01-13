@@ -166,7 +166,7 @@ def preprocess_with_smote(
     kaggle_base_dir="/kaggle/input/diabetic-retinopathy-blindness-detection-c-data",
     img_size=(224, 224),
     batch_size=8,
-    limit_data=1500,
+    limit_data=None,
 ):
     train_labels_path = os.path.join(kaggle_base_dir, "trainLabels.csv")
 
