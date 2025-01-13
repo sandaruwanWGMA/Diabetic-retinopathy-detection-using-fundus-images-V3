@@ -197,39 +197,39 @@ googlenet_model, resnet_model = load_models()
 ####### FOR TRAINING THE SVM #######
 
 # Train the SVM model on the full dataset
-model, val_labels, y_val_pred, y_val_prob = train_svm_on_full_dataset(
-    train_generator=train_generator,  # Training generator
-    validation_generator=validation_generator,  # Validation generator
-    googlenet_model=googlenet_model,  # Pretrained GoogleNet model
-    resnet_model=resnet_model,  # Pretrained ResNet model
-    log_dir="logs",  # Directory to save logs/models
-    model_name="diabetic_retinopathy_model",  # Model name
-)
+# model, val_labels, y_val_pred, y_val_prob = train_svm_on_full_dataset(
+#     train_generator=train_generator,  # Training generator
+#     validation_generator=validation_generator,  # Validation generator
+#     googlenet_model=googlenet_model,  # Pretrained GoogleNet model
+#     resnet_model=resnet_model,  # Pretrained ResNet model
+#     log_dir="logs",  # Directory to save logs/models
+#     model_name="diabetic_retinopathy_model",  # Model name
+# )
 
-# Ensure the saved_models directory exists
-saved_models_dir = "saved_models"
-if not os.path.exists(saved_models_dir):
-    os.makedirs(saved_models_dir)
+# # Ensure the saved_models directory exists
+# saved_models_dir = "saved_models"
+# if not os.path.exists(saved_models_dir):
+#     os.makedirs(saved_models_dir)
 
-# Save the trained model
-model_save_path = os.path.join(saved_models_dir, "trained_model.pkl")
-with open(model_save_path, "wb") as f:
-    pickle.dump(model, f)
-print(f"[INFO] Trained model saved successfully to {model_save_path}")
+# # Save the trained model
+# model_save_path = os.path.join(saved_models_dir, "trained_model.pkl")
+# with open(model_save_path, "wb") as f:
+#     pickle.dump(model, f)
+# print(f"[INFO] Trained model saved successfully to {model_save_path}")
 
-# Save classification report using your function
-classification_report_save_path = os.path.join(
-    saved_models_dir, "classification_report.csv"
-)
-save_classification_report(
-    val_labels, y_val_pred, filename=classification_report_save_path
-)
+# # Save classification report using your function
+# classification_report_save_path = os.path.join(
+#     saved_models_dir, "classification_report.csv"
+# )
+# save_classification_report(
+#     val_labels, y_val_pred, filename=classification_report_save_path
+# )
 
-# Plot and save confusion matrix using your function
-confusion_matrix_save_path = os.path.join(saved_models_dir, "confusion_matrix.png")
-plot_confusion_matrix(
-    val_labels, y_val_pred, classes=[0, 1, 2, 3, 4], filename=confusion_matrix_save_path
-)
+# # Plot and save confusion matrix using your function
+# confusion_matrix_save_path = os.path.join(saved_models_dir, "confusion_matrix.png")
+# plot_confusion_matrix(
+#     val_labels, y_val_pred, classes=[0, 1, 2, 3, 4], filename=confusion_matrix_save_path
+# )
 
 ####### FOR INCREMENTAL TRAINING WITH EPOCHS USING NEURAL NETWORK #######
 
@@ -282,55 +282,55 @@ plot_confusion_matrix(
 
 ####### FOR INCREMENTAL TRAINING WITH EPOCHS USING NEURAL NETWORK AND FOCAL LOSS #######
 
-# num_classes = 5
+num_classes = 5
 
-# # Train classifier incrementally with epochs using NN
-# losses, y_val, y_pred, trained_model = (
-#     incremental_train_classifier_with_epochs_focal_loss(
-#         train_generator=train_generator,
-#         validation_generator=validation_generator,
-#         googlenet_model=googlenet_model,
-#         resnet_model=resnet_model,
-#         num_classes=num_classes,
-#         classifier_type="NN",
-#         log_dir="logs",
-#         model_name="diabetic_retinopathy_model",
-#         num_epochs=25,
-#         callbacks=[custom_early_stopping],
-#         gamma=2.0,  # Focal Loss hyperparameter
-#         alpha=0.25,  # Focal Loss hyperparameter for class weighting
-#     )
-# )
+# Train classifier incrementally with epochs using NN
+losses, y_val, y_pred, trained_model = (
+    incremental_train_classifier_with_epochs_focal_loss(
+        train_generator=train_generator,
+        validation_generator=validation_generator,
+        googlenet_model=googlenet_model,
+        resnet_model=resnet_model,
+        num_classes=num_classes,
+        classifier_type="NN",
+        log_dir="logs",
+        model_name="diabetic_retinopathy_model",
+        num_epochs=25,
+        callbacks=[custom_early_stopping],
+        gamma=2.0,  # Focal Loss hyperparameter
+        alpha=0.25,  # Focal Loss hyperparameter for class weighting
+    )
+)
 
-# # Ensure the saved_models directory exists
-# saved_models_dir = "saved_models"
-# if not os.path.exists(saved_models_dir):
-#     os.makedirs(saved_models_dir)
+# Ensure the saved_models directory exists
+saved_models_dir = "saved_models"
+if not os.path.exists(saved_models_dir):
+    os.makedirs(saved_models_dir)
 
-# # Save model weights
-# weights_save_path = os.path.join(saved_models_dir, "trained_nn_model.weights.h5")
-# trained_model.save_weights(weights_save_path)
+# Save model weights
+weights_save_path = os.path.join(saved_models_dir, "trained_nn_model.weights.h5")
+trained_model.save_weights(weights_save_path)
 
-# # Save model architecture
-# architecture_save_path = os.path.join(saved_models_dir, "trained_nn_model.json")
-# model_json = trained_model.to_json()
-# with open(architecture_save_path, "w") as json_file:
-#     json_file.write(model_json)
+# Save model architecture
+architecture_save_path = os.path.join(saved_models_dir, "trained_nn_model.json")
+model_json = trained_model.to_json()
+with open(architecture_save_path, "w") as json_file:
+    json_file.write(model_json)
 
-# print(f"Trained Neural Network weights saved successfully to {weights_save_path}")
-# print(
-#     f"Trained Neural Network architecture saved successfully to {architecture_save_path}"
-# )
+print(f"Trained Neural Network weights saved successfully to {weights_save_path}")
+print(
+    f"Trained Neural Network architecture saved successfully to {architecture_save_path}"
+)
 
-# # Save classification report and plot confusion matrix
-# save_classification_report(y_val, y_pred, filename="classification_report_nn.csv")
-# plot_confusion_matrix(
-#     y_val, y_pred, classes=[0, 1, 2, 3, 4], filename="confusion_matrix_nn.png"
-# )
+# Save classification report and plot confusion matrix
+save_classification_report(y_val, y_pred, filename="classification_report_nn.csv")
+plot_confusion_matrix(
+    y_val, y_pred, classes=[0, 1, 2, 3, 4], filename="confusion_matrix_nn.png"
+)
 
-# # Existing plotting and saving functionality
-# plot_loss(losses, title="Loss Function Over Time (NN)", save_path="loss_plot_nn.png")
-# save_losses_to_file(losses, "loss_values_nn.txt")
+# Existing plotting and saving functionality
+plot_loss(losses, title="Loss Function Over Time (NN)", save_path="loss_plot_nn.png")
+save_losses_to_file(losses, "loss_values_nn.txt")
 
 
 ####################################
