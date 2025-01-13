@@ -129,6 +129,7 @@ from imblearn.over_sampling import SMOTE
 from sklearn.preprocessing import StandardScaler
 import gc  # Import garbage collector for memory management
 
+
 def tf_image_loader(
     out_size,
     horizontal_flip=True,
@@ -157,14 +158,18 @@ def tf_image_loader(
         if random_contrast:
             X = tf.image.random_contrast(X, lower=0.75, upper=1.5)
         return preproc_func(X)
+
     return _func
+
 
 def preprocess_with_smote(
     kaggle_base_dir="/kaggle/input/diabetic-retinopathy-blindness-detection-c-data",
     img_size=(224, 224),
     batch_size=8,
-    limit_data=1500
+    limit_data=1500,
 ):
+    train_labels_path = os.path.join(kaggle_base_dir, "trainLabels.csv")
+
     # Load the dataset, limiting entries if limit_data is specified
     if limit_data is not None:
         print(f"[INFO] Loading dataset limited to {limit_data} entries.")
@@ -172,15 +177,20 @@ def preprocess_with_smote(
     else:
         print("[INFO] Loading the full dataset.")
         retina_df = pd.read_csv(train_labels_path)
-        
-    train_labels_path = os.path.join(kaggle_base_dir, "trainLabels.csv")
-    train_images_dir = os.path.join(kaggle_base_dir, "train_images_768", "train")
-    retina_df['path'] = retina_df['image'].apply(lambda x: os.path.join(train_images_dir, f"{x}.jpeg"))
-    retina_df['exists'] = retina_df['path'].apply(os.path.exists)
-    retina_df = retina_df[retina_df['exists']]
-    retina_df['level_cat'] = retina_df['level'].apply(lambda x: to_categorical(x, num_classes=5))
 
-    train_df, valid_df = train_test_split(retina_df, test_size=0.25, random_state=42, stratify=retina_df['level'])
+    train_images_dir = os.path.join(kaggle_base_dir, "train_images_768", "train")
+    retina_df["path"] = retina_df["image"].apply(
+        lambda x: os.path.join(train_images_dir, f"{x}.jpeg")
+    )
+    retina_df["exists"] = retina_df["path"].apply(os.path.exists)
+    retina_df = retina_df[retina_df["exists"]]
+    retina_df["level_cat"] = retina_df["level"].apply(
+        lambda x: to_categorical(x, num_classes=5)
+    )
+
+    train_df, valid_df = train_test_split(
+        retina_df, test_size=0.25, random_state=42, stratify=retina_df["level"]
+    )
     print("[INFO] Dataset split into training and validation.")
 
     image_augmentation = tf_image_loader(img_size)
@@ -190,8 +200,8 @@ def preprocess_with_smote(
         smote = SMOTE(random_state=42)
         print("[INFO] Starting SMOTE processing and data augmentation.")
 
-        paths = df['path'].tolist()
-        labels = np.stack(df['level_cat'].tolist())
+        paths = df["path"].tolist()
+        labels = np.stack(df["level_cat"].tolist())
         features = np.array([image_augmentation(path) for path in paths])
 
         features = features.reshape(len(features), -1)
@@ -207,7 +217,9 @@ def preprocess_with_smote(
         for start in range(0, len(features), batch_size):
             end = start + batch_size
             elapsed_time = time.time() - start_time
-            print(f"[INFO] Processing batch {start//batch_size + 1}: Elapsed time: {elapsed_time:.2f} seconds")
+            print(
+                f"[INFO] Processing batch {start//batch_size + 1}: Elapsed time: {elapsed_time:.2f} seconds"
+            )
             yield features[start:end], labels[start:end]
             gc.collect()
 
@@ -215,23 +227,34 @@ def preprocess_with_smote(
         lambda: smote_generator(train_df),
         output_signature=(
             tf.TensorSpec(shape=(None, *img_size, 3), dtype=tf.float32),
-            tf.TensorSpec(shape=(None, 5), dtype=tf.float32))
+            tf.TensorSpec(shape=(None, 5), dtype=tf.float32),
+        ),
     )
     valid_dataset = tf.data.Dataset.from_tensor_slices(
-        (np.array([image_augmentation(path) for path in valid_df['path'].tolist()]),
-         np.stack(valid_df['level_cat'].tolist()))
+        (
+            np.array([image_augmentation(path) for path in valid_df["path"].tolist()]),
+            np.stack(valid_df["level_cat"].tolist()),
+        )
     ).batch(batch_size)
 
     # Extract one sample to check shapes
     sample_train_features, sample_train_labels = next(iter(train_dataset))
     sample_valid_features, sample_valid_labels = next(iter(valid_dataset))
 
-    print(f"[INFO] Example training data shape: {sample_train_features.shape}, {sample_train_labels.shape}")
-    print(f"[INFO] Example validation data shape: {sample_valid_features.shape}, {sample_valid_labels.shape}")
+    print(
+        f"[INFO] Example training data shape: {sample_train_features.shape}, {sample_train_labels.shape}"
+    )
+    print(
+        f"[INFO] Example validation data shape: {sample_valid_features.shape}, {sample_valid_labels.shape}"
+    )
 
     # Calculate and print final class counts
-    final_train_class_counts = calculate_class_counts(train_dataset, num_batches=int(len(train_df)/batch_size))
-    final_valid_class_counts = calculate_class_counts(valid_dataset, num_batches=int(len(valid_df)/batch_size))
+    final_train_class_counts = calculate_class_counts(
+        train_dataset, num_batches=int(len(train_df) / batch_size)
+    )
+    final_valid_class_counts = calculate_class_counts(
+        valid_dataset, num_batches=int(len(valid_df) / batch_size)
+    )
     print("[INFO] Final training class counts:")
     for i, count in enumerate(final_train_class_counts):
         print(f"Class {i+1:02}: {int(count)}")
@@ -240,6 +263,7 @@ def preprocess_with_smote(
         print(f"Class {i+1:02}: {int(count)}")
 
     return train_dataset, valid_dataset
+
 
 def calculate_class_counts(generator, num_batches=100):
     class_counts = np.zeros(5)
