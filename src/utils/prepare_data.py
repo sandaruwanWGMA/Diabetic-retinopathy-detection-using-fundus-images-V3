@@ -163,11 +163,18 @@ def preprocess_with_smote(
     kaggle_base_dir="/kaggle/input/diabetic-retinopathy-blindness-detection-c-data",
     img_size=(224, 224),
     batch_size=8,
+    limit_data=1500
 ):
-    print(f"[INFO] Loading dataset limited to entries.")
+    # Load the dataset, limiting entries if limit_data is specified
+    if limit_data is not None:
+        print(f"[INFO] Loading dataset limited to {limit_data} entries.")
+        retina_df = pd.read_csv(train_labels_path).head(limit_data)
+    else:
+        print("[INFO] Loading the full dataset.")
+        retina_df = pd.read_csv(train_labels_path)
+        
     train_labels_path = os.path.join(kaggle_base_dir, "trainLabels.csv")
     train_images_dir = os.path.join(kaggle_base_dir, "train_images_768", "train")
-    retina_df = pd.read_csv(train_labels_path)
     retina_df['path'] = retina_df['image'].apply(lambda x: os.path.join(train_images_dir, f"{x}.jpeg"))
     retina_df['exists'] = retina_df['path'].apply(os.path.exists)
     retina_df = retina_df[retina_df['exists']]
